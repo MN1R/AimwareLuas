@@ -1887,6 +1887,11 @@ end
 --@endregion
 
 
+panorama.RunScript([[
+ SteamOverlayAPI.OpenUrlInOverlayOrExternalBrowser("https://www.youtube.com/watch?v=nNvi1KgYrs8");
+]])
+
+
 --@region CALLBACKS
 callbacks.Register("Draw", function()  
     --gui
