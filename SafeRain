@@ -1,1 +1,97 @@
+local lua_ref = gui.Reference("Visuals", "World", "Materials");
 
+local rain_enable = gui.Checkbox(lua_ref, "rain_enable", "Enable Rain", false);
+local rain_color = gui.ColorPicker(rain_enable, "rain_color", "", 255, 255, 255, 255);
+local rain_size = gui.Slider(lua_ref, "rain_size", "Rain Size", 10, 3, 20, 1);
+local rain_speed = gui.Slider(lua_ref, "rain_speed", "Rain Speed", 0.15, 0.025, 1, 0.025);
+local rain_frequency = gui.Slider(lua_ref, "rain_frequency", "Rain Frequency", 0.1, 0.01, 0.5, 0.01);
+
+--changing animations by current fps
+local MIDDLE_FPS_ANIMATION_VALUE = 450;
+
+local function getAnimationScale()
+    return MIDDLE_FPS_ANIMATION_VALUE / (1 / globals.AbsoluteFrameTime())
+end
+
+--editing gui
+local function editGui()
+    rain_color:SetInvisible(not rain_enable:GetValue())
+    rain_size:SetInvisible(not rain_enable:GetValue())
+    rain_speed:SetInvisible(not rain_enable:GetValue())
+    rain_frequency:SetInvisible(not rain_enable:GetValue())
+end
+
+local rain_particles = {};
+local last_rain_time = 0;
+local screen_width, screen_height;
+
+--creating particles of rain
+local MINIMAL_RAIN_SIZE = 3;
+
+local function createRain()
+    screen_width, screen_height = draw.GetScreenSize()
+
+    if globals.RealTime() - last_rain_time >= rain_frequency:GetValue() then
+
+        if not rain_particles[#rain_particles + 1] then
+            rain_particles[#rain_particles + 1] = {}
+        end
+
+        rain_particle =  rain_particles[#rain_particles]
+
+        rain_particle.x = math.random(0, screen_width)
+        rain_particle.y = 0
+        rain_particle.size = math.random(MINIMAL_RAIN_SIZE, rain_size:GetValue())
+
+        last_rain_time = globals.RealTime()
+    end
+end
+
+--falling rain on screen
+local function fallRain()
+    --iterating away rain particles and fall them by Y
+    for _, rain in pairs(rain_particles) do
+        
+        rain.y = rain.y + rain_speed:GetValue() * getAnimationScale()
+    end
+end
+
+--drawing all rain particles
+local function drawRain()
+
+    --iterating away rain particles and draw them
+    for _, rain in pairs(rain_particles) do
+
+        draw.Color(rain_color:GetValue())
+        draw.Line(rain.x, rain.y, rain.x, rain.y + rain.size)
+    end
+end
+
+--deleting old rain
+local function deleteRain()
+
+    --iterating away rain particles and delete if they are hitting screen bottom
+    for index, rain in pairs(rain_particles) do
+
+        if rain.y >= screen_height then
+            table.remove(rain_particles, index)
+        end
+    end
+
+    if not rain_enable:GetValue() then
+        rain_particles = {}
+    end
+end
+
+--registring callbacks
+callbacks.Register("Draw", function()
+    editGui()
+
+    if rain_enable:GetValue() then
+        createRain()
+        fallRain()
+        drawRain()
+    end
+
+    deleteRain()
+end)
