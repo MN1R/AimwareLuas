@@ -309,8 +309,9 @@ local convar_array = {}
 
 local function setConvar(name, value)
     
-    if value ~= convar_array[name] or not convar_array[name]  then
+    if value and value ~= convar_array[name] or not convar_array[name] then
 
+        --print(name .. " convar installed to the value: " .. value)
         client.SetConVar(name, value, true)
         convar_array[name] = value
    end
@@ -320,8 +321,9 @@ local prop_array = {}
 
 local function setProp(entity, name, value)
 
-    if value ~= prop_array[name] or not prop_array[name]  then
+    if value and value ~= prop_array[name] or not prop_array[name] then
 
+        --print(name .. " prop installed to the value: " .. value)
         entity:SetProp(name, value)
         prop_array[name] = value
    end
@@ -1689,6 +1691,7 @@ local function getConvarVisualsCaches()
 end
 local convar_visuals_caches = getConvarVisualsCaches()
 
+--setting all caches of convar visuals
 local function setConvarVisualsCaches()
     if not visuals_other_ui.view_model_changer:GetValue() then
         setConvar("viewmodel_offset_x", convar_visuals_caches[1])
@@ -1701,6 +1704,7 @@ local function setConvarVisualsCaches()
     end
 end
 
+--setting all convars visuals
 local function setConvarVisuals()
 
     if visuals_other_ui.aspect_ratio:GetValue() then
@@ -1724,7 +1728,7 @@ local post_proccesing = gui.Reference("Visuals", "Other", "Effects", "Effects Re
 
 --cache system will help with values on unload
 local function getWorldModificationsCaches()
-    if not handler_variables.tone_map_controller then return end
+    if not handler_variables.tone_map_controller or not handler_variables.local_entity then return end
 
     return {  
             handler_variables.tone_map_controller:GetProp("m_flCustomBloomScaleMinimum"), handler_variables.tone_map_controller:GetProp("m_flCustomBloomScale"),
@@ -1735,8 +1739,10 @@ local function getWorldModificationsCaches()
 end
 local world_modifications_caches = getWorldModificationsCaches()
 
+--setting all caches of visuals 
 local function setWorldModificationsCaches()
-
+    if not world_modifications_caches then return end
+    
     if handler_variables.tone_map_controller then
         setProp(handler_variables.tone_map_controller, "m_flCustomBloomScaleMinimum", world_modifications_caches[1])
         setProp(handler_variables.tone_map_controller, "m_flCustomBloomScale", world_modifications_caches[2]);
@@ -1752,6 +1758,7 @@ local function setWorldModificationsCaches()
     setConvar("mat_ambient_light_b", world_modifications_caches[8])
 end
 
+--setting all world modifications
 local function setWolrdModifications()
 
     if visuals_other_ui.world_modifications:GetValue() then
@@ -1779,15 +1786,29 @@ local function setWolrdModifications()
     end
 end
 
+--creating caches table to install them on unload 
 local function createVisualsCachesData()
     if not world_modifications_caches then
         world_modifications_caches = getWorldModificationsCaches()
     end
+end
 
-    --reseting props on server switch
-    if not handler_variables.local_entity then
-        convar_array = {}
+--reseting visual's tables to set them on reconnect to the new server
+local tables_reseted = false;
+
+local function resetVisualsArrays()
+    if (not handler_variables.tone_map_controller or not handler_variables.local_entity) and not tables_reseted then
+
+        --print("tables has been reseted")
+
         prop_array = {}
+        convar_array = {}   
+
+        tables_reseted = true
+    end
+
+    if handler_variables.tone_map_controller and handler_variables.local_entity then
+        tables_reseted = false
     end
 end
 
@@ -1887,11 +1908,6 @@ end
 --@endregion
 
 
-panorama.RunScript([[
- SteamOverlayAPI.OpenUrlInOverlayOrExternalBrowser("https://www.youtube.com/watch?v=nNvi1KgYrs8");
-]])
-
-
 --@region CALLBACKS
 callbacks.Register("Draw", function()  
     --gui
@@ -1906,7 +1922,7 @@ callbacks.Register("Draw", function()
 
     --optimizer
     clearHitArray()
-
+    resetVisualsArrays()
 
     if preparation_finished and handler_variables.local_entity then
         --visuals
@@ -1950,7 +1966,6 @@ end)
 callbacks.Register("PostMove", function()
     --handlers
     getKeybindsStates()
-    
 
     if preparation_finished and handler_variables.local_entity then
         --yaw modifiers
