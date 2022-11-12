@@ -1,0 +1,657 @@
+--gui
+local lua_ref = gui.Reference("Visuals")
+local lua_tab = gui.Tab(lua_ref, "lua_tab", "Custom Keybinds")
+
+local groubox_controller = gui.Groupbox(lua_tab, "Controller", 5, 10, 325, 50)
+
+local groubox_general = gui.Groupbox(lua_tab, "General", 5, 120, 325, 450)
+groubox_general:SetInvisible(false)
+
+local groubox_font = gui.Groupbox(lua_tab, "Font", 5, 120, 325, 450)
+groubox_font:SetInvisible(true)
+
+local groubox_elements = gui.Groupbox(lua_tab, "Elements", 5, 120, 325, 450)
+groubox_elements:SetInvisible(true)
+
+--gui controller
+local gui_controller = gui.Combobox(groubox_controller, "gui_controller", "Tabs Controller", "General", "Font", "Elements")
+
+--general
+
+local keybinds_size = gui.Slider(groubox_general, "keybinds_size", "Keybinds Size", 140, 50, 500, 1)
+local distance_from_borders = gui.Slider(groubox_general, "distance_from_borders", "Distance From Borders", 7, 0, 200, 1)
+local distance_from_head = gui.Slider(groubox_general, "distance_from_head", "Distance From Head", 20, 0, 500, 1)
+local distance_between_names = gui.Slider(groubox_general, "distance_between_names", "Distance Between Names", 15, 0, 200, 1)
+
+local text_transfer_general = gui.Text(groubox_general, '\n')
+
+local animations_speed_scale = gui.Slider(groubox_general, "animations_speed_scale", "Animations Speed Scale", 1, 0.25, 4, 0.05)
+
+--font
+local font_outline = gui.Checkbox(groubox_font, "font_outline", "Enable Outline For Text", false)
+local font_box = gui.Editbox(groubox_font, "font_box", "Selected Font")
+
+local font_size = gui.Slider(groubox_font, "font_size", "Font Size", 13, 5, 45, 1)
+local font_width = gui.Slider(groubox_font, "font_width", "Font Width", 800, 500, 800, 50)
+
+local text_transfer_font = gui.Text(groubox_font, '\n')
+
+local text_color = gui.ColorPicker(groubox_font, "text_color", "Text Color", 255, 255, 255)
+local text_outlined_color = gui.ColorPicker(groubox_font, "text_outlined_color", "Text Outlined Color", 10, 10, 10)
+
+--elements
+local elements_box = gui.Multibox(groubox_elements, "Select Element To Edit")
+
+local elements_particle = {};
+local element_interface_particle = {}
+
+--@region ELEMENTS
+
+--create elements of keybinds
+local function createElement()
+	--basic multibox
+	local element_varname = tostring(#elements_particle + 1) .. "_element"
+	local element_name = tostring(#elements_particle + 1) .. " Element"
+
+	elements_particle[#elements_particle + 1] = gui.Checkbox(elements_box, element_varname, element_name, false)
+
+	--all varnames and names
+	local interface_name = tostring(#element_interface_particle + 1)
+
+	--create interface
+	element_interface_particle[#element_interface_particle + 1] = 
+	{
+		gui.Combobox(groubox_elements, interface_name .. "_combobox", interface_name .. " Element Type",
+			 "Line", "Filled Rect", "Outlined Rect", "Gradient Rect R", "Gradient Rect L", "Gradient Rect U", "Gradient Rect D"),
+
+		gui.Slider(groubox_elements, interface_name .. "_element_position_x", interface_name .. " Element Position X", 0, -700, 700, 1),
+		gui.Slider(groubox_elements, interface_name .. "_element_size_x", interface_name .. " Element Size X", 0, -700, 700, 1),
+
+		gui.Checkbox(groubox_elements, interface_name ..   "_position_on_bottom", interface_name .. " Element Position On Bottom", false),
+
+		gui.Slider(groubox_elements, interface_name .. "_element_position_y", interface_name .. " Element Position Y", 0, -700, 700, 1),
+
+		gui.Checkbox(groubox_elements, interface_name .. "_size_on_bottom", interface_name .. " Element Size On Bottom", false),
+
+		gui.Slider(groubox_elements, interface_name .. "_element_size_y", interface_name .. " Element Size Y", 0, -700, 700, 1),
+
+		gui.ColorPicker(groubox_elements, interface_name .. "_element_color", interface_name .. " Element Color", 255, 255, 255, 255)
+	}
+end
+
+--remove last element
+local function removeElement()
+	elements_particle[#elements_particle]:Remove()
+
+	for element = 1, #element_interface_particle[#element_interface_particle], 1 do
+		element_interface_particle[#element_interface_particle][element]:Remove()
+	end
+
+	table.remove(elements_particle, #elements_particle)
+	table.remove(element_interface_particle, #element_interface_particle)
+end
+
+--get active element
+local function getCurrentElement()
+	for element = 1, #elements_particle, 1 do
+		if elements_particle[element]:GetValue() then
+			return element
+		end
+	end
+end
+
+--invisible of elementsetc
+local function changeElementsUi()
+	for element = 1, #elements_particle, 1 do
+		for interface_element = 1, #element_interface_particle[element], 1 do
+			if elements_particle[element]:GetValue() then
+				element_interface_particle[element][interface_element]:SetInvisible(false)
+			else
+				element_interface_particle[element][interface_element]:SetInvisible(true)
+			end
+
+			if getCurrentElement() and getCurrentElement() ~= element then
+				elements_particle[element]:SetValue(false)
+			end
+		end
+	end
+end
+
+--create first start elements to save in cfg
+local function fileExists(file_name)
+	local has_file = false
+
+	file.Enumerate(function(file)
+		if file == file_name then
+			has_file = true
+		end
+	end)
+
+	return has_file
+end
+
+local function getLastElementsNumber()
+	local elements_number = 10
+
+	local file_name = string.sub(GetScriptName(), 1, string.find(GetScriptName(), ".lua") - 1) .. "_last_elements_number.txt"
+
+	if fileExists(file_name) then
+		local file_open = file.Open(file_name, 'r')
+		local file_data = file_open:Read()
+
+		file_open:Close()
+
+		elements_number = file_data
+	else
+		file.Write(file_name, "10")
+	end
+
+	return elements_number
+end
+
+callbacks.Register("Unload", function()
+	local file_name = string.sub(GetScriptName(), 1, string.find(GetScriptName(), ".lua") - 1) .. "_last_elements_number.txt"
+
+	file.Delete(file_name)
+	file.Write(file_name, #elements_particle)
+end)
+
+
+
+local isFirstLoad = true
+
+local function makeFirstElements()
+	if isFirstLoad then
+		for created_elements = 1, getLastElementsNumber(), 1 do
+			createElement()
+		end
+
+		isFirstLoad = false
+	end
+end
+
+--element buttons
+
+--create element by button
+local create_element_button = gui.Button(groubox_elements, "Create Element", function()
+	createElement()
+end)
+
+--remove element by button
+local remove_element_button = gui.Button(groubox_elements, "Remove Element", function()
+	removeElement()
+end)
+
+
+local text_transfer_elements = gui.Text(groubox_elements, '\n')
+--@endregion
+
+
+--@region SLIDERS
+--creating sliders and get screen size
+local position_x, position_y;
+local screen_width, screen_height; 
+
+--create sliders
+local function sliders_ui()
+	position_x = gui.Slider(lua_ref, "position_x", "X", 300, 0, screen_width)
+	position_y = gui.Slider(lua_ref, "position_y", "Y", 700, 0, screen_height)
+end
+
+--make sliders them invisible
+local function guiChanges()
+	position_x:SetInvisible(true)
+	position_y:SetInvisible(true)
+
+	local main_groups = {groubox_general, groubox_font, groubox_elements}
+
+	for i = 1, #main_groups, 1 do
+
+		local invisible_bool = ((gui_controller:GetValue() + 1) == i)
+
+		main_groups[i]:SetInvisible(not invisible_bool) 
+	end
+end
+
+--get screen size
+local function getScreenSize()
+	if not screen_width or not screen_height then
+		screen_width, screen_height = draw.GetScreenSize()
+		sliders_ui()
+	end
+end
+--@endregion
+
+
+--@region CUSTOM FUCNTIONS
+--draw. part
+
+--draw outlined text
+draw.OutlinedText = function(position_x, position_y, text, color, font, color_outlined, font_outlined, enable_outline)
+	if enable_outline and color_outlined and font_outlined then
+
+		--outline
+		draw.SetFont(font_outlined)
+		draw.Color(color_outlined[1], color_outlined[2], color_outlined[3], color_outlined[4])
+		draw.Text(position_x, position_y, text)
+
+		--default text
+		draw.SetFont(font)
+		draw.Color(color[1], color[2], color[3], color[4])
+		draw.Text(position_x, position_y, text)
+	else
+
+		--default text
+		draw.SetFont(font)
+		draw.Color(color[1], color[2], color[3], color[4])
+		draw.Text(position_x, position_y, text)
+	end
+end
+
+--gradient rect up
+draw.GradientRectUp = function(position_x, position_y, lenght, width, color)
+	if not color[4] then color[4] = 255 end
+
+	if color[4] <= 0 then
+		return
+	end
+
+	local lenght = color[4] / lenght
+
+	for step = color[4], 0, -lenght do
+		draw.Color(color[1], color[2], color[3], step)
+		draw.FilledRect(position_x, position_y, position_x + width, position_y - 1)
+
+		position_y = position_y - 1
+	end
+end
+
+--gradient rect down
+draw.GradientRectDown = function(position_x, position_y, lenght, width, color)
+	if not color[4] then color[4] = 255 end
+
+	if color[4] <= 0 then
+		return
+	end
+
+	local lenght = color[4] / lenght
+
+	for step = color[4], 0, -lenght do
+		draw.Color(color[1], color[2], color[3], step)
+		draw.FilledRect(position_x, position_y, position_x + width, position_y + 1)
+
+		position_y = position_y + 1
+	end
+end
+
+--gradient rect right
+draw.GradientRectRight = function(position_x, position_y, lenght, width, color)
+	if not color[4] then color[4] = 255 end
+
+	if color[4] <= 0 then
+		return
+	end
+
+	local lenght = color[4] / lenght
+
+	for step = color[4], 0, -lenght do
+		draw.Color(color[1], color[2], color[3], step)
+		draw.FilledRect(position_x, position_y, position_x + 1, position_y + width)
+
+		position_x = position_x + 1
+	end
+end
+
+--gradient rect left
+draw.GradientRectLeft = function(position_x, position_y, lenght, width, color)
+	if not color[4] then color[4] = 255 end
+
+	if color[4] <= 0 then
+		return
+	end
+
+	local lenght = color[4] / lenght
+
+	for step = color[4], 0, -lenght do
+		draw.Color(color[1], color[2], color[3], step)
+		draw.FilledRect(position_x, position_y, position_x - 1, position_y + width)
+
+		position_x = position_x - 1
+	end
+end
+
+--math. part
+--math.sumfromto
+math.sumFromTo = function(array, first_sum, last_sum)
+    local sum = 0
+    for term = first_sum, last_sum, 1 do
+        sum = sum + array[term]
+    end
+
+    return sum
+end
+
+--general part
+--get weapon group
+local function getWeaponGroup()
+    local local_entity = entities:GetLocalPlayer()
+    if not local_entity or not local_entity:IsAlive() then 
+        return
+    end
+
+    local legit_weapon = "shared"
+    local weapon_id = local_entity:GetWeaponID()
+
+    local weapon_groups = {pistol = {2, 3, 4, 30, 32, 36, 61, 63}, 
+                           sniper = {9}, 
+                           scout = {40}, 
+                           hpistol = {1, 64}, 
+                           smg = {17, 19, 23, 24, 26, 33, 34}, rifle = {60, 7, 8, 10, 13, 16, 39, 61}, 
+                           shotgun = {25, 27, 29, 35}, 
+                           asniper = {38, 11}, 
+                           lmg = {28, 14},
+                           knife = {505, 506, 507, 508, 509, 510, 511, 512, 513, 514, 515, 516, 517, 518, 519, 520, 521, 522, 523, 524, 42}, 
+                          }
+    
+    for key, value in pairs(weapon_groups) do 
+        for weapon_index = 1, #value, 1 do 
+            if weapon_id == value[weapon_index] then
+                legit_weapon = key
+                break
+            end
+        end
+    end
+
+    return legit_weapon
+end
+--@endregion
+
+
+--@region KEYBINDS FUNCTIONS
+--create font
+local font, font_outlined;
+local old_font_name, old_font_size, old_font_width;
+
+local function createFont()
+	local font_name_new = font_box:GetValue()
+	local font_size_new = font_size:GetValue()
+	local font_widht_new = font_width:GetValue()
+
+	if font_name_new ~= old_font_name or old_font_widht ~= font_widht_new or old_font_size ~= font_size_new then
+		font = draw.CreateFont(font_name_new, font_size_new, font_widht_new, 0)
+		font_outlined = draw.CreateFont(font_name_new, font_size_new, font_widht_new, 1)
+
+		old_font_name = font_name_new
+		old_font_size = font_size_new
+		old_font_widht = font_widht_new
+	end
+end
+
+--controle keybinds position
+local function controlePosition()
+	local menu = gui.Reference('Menu')
+
+	local mouse_position = {input.GetMousePos()}
+	local menu_position = {menu:GetValue()}
+
+	local isNearMouse = (math.abs(position_x:GetValue() - mouse_position[1]) <= 75 and math.abs(position_y:GetValue() - mouse_position[2]) <= 75)
+	local isNotNearMenu = (math.abs(position_x:GetValue() - menu_position[1]) > 90 or math.abs(position_y:GetValue() - menu_position[2]) > 90)
+
+	if menu:IsActive() and isNearMouse and isNotNearMenu and input.IsButtonDown(1) then
+		position_x:SetValue(mouse_position[1])
+		position_y:SetValue(mouse_position[2])
+	end
+end
+
+--get states to use in functions
+local enabled_functions = {};
+
+local function getFunctionsStates()
+	local local_entity = entities.GetLocalPlayer()
+
+	if not local_entity or not local_entity:IsAlive() then
+		return
+	end
+
+	local double_tap_enable =  gui.GetValue("rbot.accuracy.attack." .. getWeaponGroup() .. ".fire") == '"Defensive Warp Fire"'
+								or gui.GetValue("rbot.accuracy.attack.shared.fire") == '"Defensive Warp Fire"'
+
+	local hide_shots_enable = gui.GetValue("rbot.accuracy.attack." .. getWeaponGroup() .. ".fire") == '"Shift Fire"'
+								or gui.GetValue("rbot.accuracy.attack.shared.fire") == '"Shift Fire"'
+
+	local fake_duck_enable = cheat.IsFakeDucking()
+	local slow_walk_enable = (gui.GetValue('rbot.accuracy.movement.slowkey') ~= 0 and input.IsButtonDown(gui.GetValue('rbot.accuracy.movement.slowkey')))
+	local third_person_enable = gui.GetValue('esp.world.thirdperson')
+	local fake_latancy_enable = (gui.GetValue('misc.fakelatency.enable') and (gui.GetValue('misc.fakelatency.amount') > 0))
+	local edje_jump_enable = (gui.GetValue('misc.edgejump') ~= 0 and input.IsButtonDown(gui.GetValue('misc.edgejump')))
+
+
+
+	enabled_functions = {double_tap_enable, hide_shots_enable, fake_duck_enable, slow_walk_enable, third_person_enable, fake_latancy_enable, edje_jump_enable}
+end
+--@endregion 
+
+
+--@region KEYBINDS BASE
+--keybinds functions
+local function animationScale()
+	local fps = 1 / globals.AbsoluteFrameTime()
+
+	local animation_scale = (450 / fps) * animations_speed_scale:GetValue()
+
+	return animation_scale
+end
+
+--make keybinds animations
+local animations_values = {0, 0, 0, 0, 0, 0, 0, 0}
+local main_animation_value = 0
+
+local extra_alpha_remover = 0
+
+local function keybindsAnimations()
+	--scale animation speed for every fps
+	local animation_scale = animationScale()
+
+	--for draw on active menu
+	local menu = gui.Reference('Menu')
+
+	--animations
+	local MAIN_ANIMATION_SPEED = 0.25
+	local MAIN_ANIMATION_LIMIT = 25
+
+	local EXTRA_ALPHA_REMOVER_SPEED = 2.5
+	local EXTRA_ALPHA_ADDER_SPEED = 6
+	local EXTRA_ALPHA_REMOVER_LIMIT = 255
+
+	local ANIMATION_SPEED = 0.2
+	local DISTANCE_BETWEEN_NAMES = distance_between_names:GetValue()
+
+	--main
+	if math.sumFromTo(animations_values, 1, #animations_values) > 0 or menu:IsActive() then
+		main_animation_value = main_animation_value + MAIN_ANIMATION_SPEED * animation_scale
+
+		if main_animation_value > MAIN_ANIMATION_LIMIT then
+			main_animation_value = MAIN_ANIMATION_LIMIT
+		end
+	else
+		main_animation_value = main_animation_value - MAIN_ANIMATION_SPEED * animation_scale
+
+		if main_animation_value < 0 then
+			main_animation_value = 0
+		end
+	end
+
+	--end animation
+	if math.sumFromTo(animations_values, 1, #animations_values) < 5 and not menu:IsActive() then
+		extra_alpha_remover = extra_alpha_remover + EXTRA_ALPHA_REMOVER_SPEED * animation_scale
+
+		if extra_alpha_remover > EXTRA_ALPHA_REMOVER_LIMIT then
+			extra_alpha_remover = EXTRA_ALPHA_REMOVER_LIMIT
+		end
+	else
+		extra_alpha_remover = extra_alpha_remover - EXTRA_ALPHA_ADDER_SPEED * animation_scale
+
+		if extra_alpha_remover < 0 then
+			extra_alpha_remover = 0
+		end
+	end
+
+	--for functions
+	for function_number = 1, #enabled_functions, 1 do
+		if enabled_functions[function_number] then
+
+			animations_values[function_number] = animations_values[function_number] + ANIMATION_SPEED * animation_scale
+
+			if animations_values[function_number] > DISTANCE_BETWEEN_NAMES then
+				animations_values[function_number] = DISTANCE_BETWEEN_NAMES
+			end
+		else
+			animations_values[function_number] = animations_values[function_number] - ANIMATION_SPEED * animation_scale
+
+			if animations_values[function_number] < 0 then
+				animations_values[function_number] = 0
+			end
+		end
+	end
+end
+
+--draw keybinds base
+local static_colors = {};
+
+local function keybindsBase()
+	--draw text
+	local DISTANCE_FROM_HEAD = distance_from_head:GetValue()
+	local DISTANCE_FROM_BORDERS = distance_from_borders:GetValue()
+	local LENGHT_OF_KEYBINDS = keybinds_size:GetValue()
+
+	local is_outline_enabled = font_outline:GetValue()
+
+	if main_animation_value > 0 then
+
+		--draw all elements
+		for element = 1, #elements_particle, 1 do
+			local current_element = element_interface_particle[element]
+
+			--all meanings of particle
+			local a_type = current_element[1]:GetValue()
+			local a_position_x = current_element[2]:GetValue()
+			local a_lenght_x = current_element[3]:GetValue()
+			local a_position_y = current_element[4]:GetValue() and current_element[5]:GetValue() + math.sumFromTo(animations_values, 1, #animations_values) + DISTANCE_FROM_HEAD or current_element[5]:GetValue()
+			local a_width_y = current_element[6]:GetValue() and current_element[7]:GetValue() + math.sumFromTo(animations_values, 1, #animations_values) + DISTANCE_FROM_HEAD or current_element[7]:GetValue()
+			local a_color = {current_element[8]:GetValue()}
+
+			--color animation
+			local COLOR_SWITCH_SPEED = 2
+
+			local animation_scale = animationScale()
+
+			--rainbow switch
+			for current_color = 1, 3 do
+				if not static_colors[element] then
+					static_colors[element] = {0, 0, 0}
+				end
+
+				if static_colors[element][current_color] < a_color[current_color] then
+					static_colors[element][current_color] = static_colors[element][current_color] + (COLOR_SWITCH_SPEED * animation_scale)
+
+					if static_colors[element][current_color] > a_color[current_color] then
+						static_colors[element][current_color] =  a_color[current_color]
+					end
+				else
+					static_colors[element][current_color] = static_colors[element][current_color] - (COLOR_SWITCH_SPEED * animation_scale)
+
+					if static_colors[element][current_color] < a_color[current_color] then
+						static_colors[element][current_color] =  a_color[current_color]
+					end
+				end
+			end
+
+			--alpha animation
+			local alpha = (a_color[4] - extra_alpha_remover) < 0 and 0 or (a_color[4] - extra_alpha_remover)
+
+			--draw selected type of object
+			if a_type == 0 then
+				draw.Color(static_colors[element][1], static_colors[element][2], static_colors[element][3], alpha)
+				draw.Line(position_x:GetValue() + a_position_x, position_y:GetValue() + a_position_y, position_x:GetValue() + a_position_x + a_lenght_x, position_y:GetValue() + a_position_y + a_width_y)
+			elseif a_type == 1 then
+				draw.Color(static_colors[element][1], static_colors[element][2], static_colors[element][3], alpha)
+				draw.FilledRect(position_x:GetValue() + a_position_x, position_y:GetValue() + a_position_y, position_x:GetValue() + a_position_x + a_lenght_x, position_y:GetValue() + a_position_y + a_width_y)
+			elseif a_type == 2 then
+				draw.Color(static_colors[element][1], static_colors[element][2], static_colors[element][3], alpha)
+				draw.OutlinedRect(position_x:GetValue() + a_position_x, position_y:GetValue() + a_position_y, position_x:GetValue() + a_position_x + a_lenght_x, position_y:GetValue() + a_position_y + a_width_y)
+			elseif a_type == 3 then
+				draw.GradientRectRight(position_x:GetValue() + a_position_x, position_y:GetValue() + a_position_y, a_lenght_x, a_width_y, {static_colors[element][1], static_colors[element][2], static_colors[element][3], alpha})
+			elseif a_type == 4 then
+				draw.GradientRectLeft(position_x:GetValue() + a_position_x, position_y:GetValue() + a_position_y, a_lenght_x, a_width_y, {static_colors[element][1], static_colors[element][2], static_colors[element][3], alpha})
+			elseif a_type == 5 then
+				draw.GradientRectUp(position_x:GetValue() + a_position_x, position_y:GetValue() + a_position_y, a_width_y, a_lenght_x, {static_colors[element][1], static_colors[element][2], static_colors[element][3], alpha})
+			elseif a_type == 6 then
+				draw.GradientRectDown(position_x:GetValue() + a_position_x, position_y:GetValue() + a_position_y, a_width_y, a_lenght_x, {static_colors[element][1], static_colors[element][2], static_colors[element][3], alpha})
+			end
+		end
+
+		--keybinds name based on main animation
+		draw.SetFont(font)
+
+		local text_size_keybinds = {draw.GetTextSize("keybinds")}
+
+		local text_color_value = {text_color:GetValue()}
+		local outline_color_value = {text_outlined_color:GetValue()}
+
+		local keybinds_alpha_text = (text_color_value[4] - extra_alpha_remover) < 0 and 0 or (text_color_value[4] - extra_alpha_remover)
+		local keybinds_alpha_outline = (outline_color_value[4] - extra_alpha_remover) < 0 and 0 or (outline_color_value[4] - extra_alpha_remover)
+
+		draw.OutlinedText(position_x:GetValue() + math.floor(LENGHT_OF_KEYBINDS / 2) - math.floor(text_size_keybinds[1] / 2) , position_y:GetValue() + math.floor(text_size_keybinds[2] / 2), "keybinds",
+		{text_color_value[1], text_color_value[2], text_color_value[3], keybinds_alpha_text}, font, {outline_color_value[1], outline_color_value[2], outline_color_value[3], keybinds_alpha_outline}, font_outlined, is_outline_enabled)
+		----------------------------------------
+
+		--names for keybinds
+		local names_of_functions = {"double fire", "hide shots", "fake duck", "slow walk", "third person", "fake latency", "edje jump"}
+		local types_of_functions = {"[toggled]", "[toggled]", "[holding]", "[holding]", "[toggled]", "[toggled]", "[holding]"}
+
+		--draw all active features
+		for function_number = 1, #enabled_functions, 1 do
+			if animations_values[function_number] > 0 then
+
+				--custom font
+				draw.SetFont(font)
+
+				--sizes of text
+				local text_size_function = {draw.GetTextSize(names_of_functions[function_number])}
+				local text_size_type = {draw.GetTextSize(types_of_functions[function_number])}
+
+				local size_of_current_animation = math.sumFromTo(animations_values, 1, function_number)
+
+				--animation based color
+				local text_color_value = {text_color:GetValue()}
+				local outline_color_value = {text_outlined_color:GetValue()}
+
+				local color_for_text = {text_color_value[1], text_color_value[2], text_color_value[3], animations_values[function_number] * (255 / distance_between_names:GetValue())}
+				local outline_color = {outline_color_value[1], outline_color_value[2], outline_color_value[3], animations_values[function_number] * (255 / distance_between_names:GetValue())} 
+
+				--function name
+				draw.OutlinedText(position_x:GetValue() + DISTANCE_FROM_BORDERS, position_y:GetValue() + size_of_current_animation + DISTANCE_FROM_HEAD - math.floor(text_size_function[2] / 2), names_of_functions[function_number],
+				color_for_text, font, outline_color, font_outlined, is_outline_enabled)
+
+				--function tupe
+				draw.OutlinedText(position_x:GetValue() + LENGHT_OF_KEYBINDS - DISTANCE_FROM_BORDERS - text_size_type[1], position_y:GetValue() + size_of_current_animation + DISTANCE_FROM_HEAD - math.floor(text_size_function[2] / 2), types_of_functions[function_number],
+				color_for_text, font, outline_color, font_outlined, is_outline_enabled)
+			end
+		end
+	end
+end
+--@endregion
+
+--@region CALLBACKS
+callbacks.Register('Draw', function()
+	getScreenSize()
+	changeElementsUi()
+	makeFirstElements()
+	guiChanges()
+	createFont()
+	controlePosition()
+	getFunctionsStates()
+	keybindsAnimations()
+	keybindsBase()
+end)
+--@endregion
