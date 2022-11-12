@@ -1860,6 +1860,16 @@ local function adaptiveAutoscope()
     end
 end
 
+
+local function setStaticArmsCaches()
+    setConvar("cl_bob_lower_amt", 19)
+    setConvar("cl_bobamt_vert", 0.16)
+    setConvar("cl_bobamt_lat", 0.37)
+    setConvar("cl_bobcycle", 0.6)
+    setConvar("cl_viewmodel_shift_right_amt", 0.75)
+    setConvar("cl_viewmodel_shift_left_amt", 1.5)
+end
+
 local function staticArms()
     if misc_useful_ui.static_arms:GetValue() then
 
@@ -1871,12 +1881,7 @@ local function staticArms()
         setConvar("cl_viewmodel_shift_left_amt", 0.5000)
     else
         
-        setConvar("cl_bob_lower_amt", 19)
-        setConvar("cl_bobamt_vert", 0.16)
-        setConvar("cl_bobamt_lat", 0.37)
-        setConvar("cl_bobcycle", 0.6)
-        setConvar("cl_viewmodel_shift_right_amt", 0.75)
-        setConvar("cl_viewmodel_shift_left_amt", 1.5)
+        setStaticArmsCaches()
     end
 end
 
@@ -2032,6 +2037,8 @@ callbacks.Register("Unload", function()
     setConvar("r_aspectratio", convar_visuals_caches[4])
 
     setWorldModificationsCaches()
+
+    setStaticArmsCaches()
 end)
 --@endregion
 
