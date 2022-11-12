@@ -1,1 +1,4 @@
 Version V1.0 released
+
+Version V1.1 update:
+1) Improved caches of convar/prop visuals and now they are working fine on server switch
