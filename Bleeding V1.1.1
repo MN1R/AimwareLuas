@@ -254,13 +254,14 @@ local misc_useful = gui.Groupbox(misc_tab, "Useful", 5, 10, 325, 450);
 
 local misc_useful_ui =
 {
-    adaptive_autoscope = gui.Checkbox(misc_useful, "adaptive_autoscope", "Enable Adaptive Autoscope", false)
+    adaptive_autoscope = gui.Checkbox(misc_useful, "adaptive_autoscope", "Enable Adaptive Autoscope", false),
+    static_arms = gui.Checkbox(misc_useful, "static_arms", "Enable Static Arms", false)
 }
 
 --_____________________________________--
 
 --_______________events________________--
-local misc_events = gui.Groupbox(misc_tab, "Events", 5, 110, 325, 450);
+local misc_events = gui.Groupbox(misc_tab, "Events", 5, 140, 325, 450);
 
 local misc_events_ui = 
 {
@@ -1727,6 +1728,8 @@ constants.MAX_COLOR_VALUE = 255;
 local post_proccesing = gui.Reference("Visuals", "Other", "Effects", "Effects Removal", "No Post Processing");
 
 --cache system will help with values on unload
+local world_modifications_caches = {}
+
 local function getWorldModificationsCaches()
     if not handler_variables.tone_map_controller or not handler_variables.local_entity then return end
 
@@ -1737,7 +1740,6 @@ local function getWorldModificationsCaches()
             client.GetConVar("mat_ambient_light_g"), client.GetConVar("mat_ambient_light_b")
            }
 end
-local world_modifications_caches = getWorldModificationsCaches()
 
 --setting all caches of visuals 
 local function setWorldModificationsCaches()
@@ -1855,6 +1857,26 @@ local function adaptiveAutoscope()
 
         gui.SetValue("rbot.accuracy.auto.shared.scopeopts.scope", distance > MAX_NOSCOPE_DISTANCE)
         gui.SetValue("rbot.accuracy.auto.asniper.scopeopts.scope", distance > MAX_NOSCOPE_DISTANCE)
+    end
+end
+
+local function staticArms()
+    if misc_useful_ui.static_arms:GetValue() then
+
+        setConvar("cl_bob_lower_amt", 5)
+        setConvar("cl_bobamt_vert", 0.1000)
+        setConvar("cl_bobamt_lat", 0.1000)
+        setConvar("cl_bobcycle", 0.98)
+        setConvar("cl_viewmodel_shift_right_amt", 0.25000)
+        setConvar("cl_viewmodel_shift_left_amt", 0.5000)
+    else
+        
+        setConvar("cl_bob_lower_amt", 19)
+        setConvar("cl_bobamt_vert", 0.16)
+        setConvar("cl_bobamt_lat", 0.37)
+        setConvar("cl_bobcycle", 0.6)
+        setConvar("cl_viewmodel_shift_right_amt", 0.75)
+        setConvar("cl_viewmodel_shift_left_amt", 1.5)
     end
 end
 
@@ -1992,6 +2014,7 @@ callbacks.Register("PostMove", function()
 
         --misc
         adaptiveAutoscope()
+        staticArms()
     end
 end)
 
