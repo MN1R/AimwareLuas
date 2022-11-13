@@ -359,8 +359,9 @@ local handler_variables =
     --non constant
     mouse_pos = {}, 
     advanced_mode_enabled = false,
-    real_time = 0,
-    tick_count = 0,
+    real_time = 1,
+    tick_count = 1,
+    cur_time = 1,
     jitter_switch_time = 0,
     desync_switch_time = 0,
     fps = 0,
@@ -451,14 +452,15 @@ local function handlers()
     --time
     handler_variables.real_time = globals.RealTime();
     handler_variables.tick_count = globals.TickCount();
+    handler_variables.cur_time = globals.CurTime()
 
     --anti_aims
     handler_variables.advanced_mode_enabled = advanced_mode:GetValue()
 
     handler_variables.jitter_switch_time = functions_states.double_tap_active and anti_aim_elements[getAntiAimCondition()].yaw_modifier_speed:GetValue() 
-                                            or gui.GetValue("misc.fakelag.factor");
+                                            or handler_variables.fake_lag_factor;
 
-    handler_variables.desync_switch_time = functions_states.double_tap_active and 2 or gui.GetValue("misc.fakelag.factor")
+    handler_variables.desync_switch_time = functions_states.double_tap_active and 2 or handler_variables.fake_lag_factor
 
     --visuals
     handler_variables.fps = (1 / globals.AbsoluteFrameTime()) >= 1000 and 999 or (1 / globals.AbsoluteFrameTime())
@@ -490,6 +492,8 @@ local function handlers()
             handler_variables.tickrate = client.GetConVar("sv_maxcmdrate")
             handler_variables.tickrate_updated = true
         end
+
+        handler_variables.fake_lag_factor = 2 + math.floor(1 + (globals.CurTime() - handler_variables.local_entity:GetPropFloat("m_flSimulationTime")) / globals.TickInterval())
     else
         handler_variables.tickrate_updated = false
     end
