@@ -1,0 +1,97 @@
+local lua_tab = gui.Tab(gui.Reference("Visuals"), "lua_tab", "Visible Only ESP");
+local lua_groupbox = gui.Groupbox(lua_tab, "Visible Only ESP", 5, 20, 325, 350);
+
+local visible_only_esp = gui.Checkbox(lua_groupbox, "visible_only_esp", "Enable Visible Only ESP", false);
+
+local visible_only_esp_name = gui.Checkbox(lua_groupbox, "visible_only_esp_name", "Show Name", false);
+local visible_only_esp_name_color = gui.ColorPicker(visible_only_esp_name, "visible_only_esp_name_color", "", 255, 255, 255, 255);
+
+local visible_only_esp_health = gui.Checkbox(lua_groupbox, "visible_only_esp_health", "Show Health", false);
+local visible_only_esp_health_color = gui.ColorPicker(visible_only_esp_health, "visible_only_esp_health_color", "", 20, 255, 20, 255);
+
+local visible_only_esp_weapon = gui.Checkbox(lua_groupbox, "visible_only_esp_weapon", "Show Weapon", false);
+local visible_only_esp_weapon_color = gui.ColorPicker(visible_only_esp_weapon, "visible_only_esp_weapon_color", "", 255, 255, 255, 255);
+
+local visible_only_esp_ammo = gui.Checkbox(lua_groupbox, "visible_only_esp_ammo", "Show Ammo", false);
+local visible_only_esp_ammo_color = gui.ColorPicker(visible_only_esp_ammo, "visible_only_esp_ammo_color", "", 0, 150, 240, 255);
+
+--checking for visibility of enity
+local function isVisible(entity)
+
+    --checking local entity for valid
+    local local_entity = entities.GetLocalPlayer()
+    if not local_entity or not local_entity:IsAlive() then
+        return  
+    end
+
+    --local_eye is our view offset
+    local local_eye = local_entity:GetAbsOrigin() + Vector3(0, 0, local_entity:GetPropFloat("localdata", "m_vecViewOffset[2]"))
+
+    local FIRST_HITBOX_NUMBER = 0;
+    local LAST_HITBOX_NUMBER = 7;
+
+    --iterating over all hitboxes to check them to visibility
+    for current_hitbox = FIRST_HITBOX_NUMBER, LAST_HITBOX_NUMBER, 1 do
+
+        local trace_to_hitbox = engine.TraceLine(Vector3(local_eye.x, local_eye.y, local_eye.z), entity:GetHitboxPosition(current_hitbox))
+
+        --checking for contents to get trace hitting something or not
+        if trace_to_hitbox.contents == 0 then
+            return true
+        end
+    end
+
+    return false
+end
+    
+--drawing visible only esp
+local function drawESP(builder)
+    
+    --checking for enable
+    if not visible_only_esp:GetValue() then return end
+
+    --checking for builder valid
+    if not builder then return end
+
+    --checking for builder entity valid
+    local builder_entity = builder:GetEntity()
+    if not builder_entity then return end
+
+    --drawing ESP if entity is alive
+    if isVisible(builder_entity) then
+
+        --name
+        if visible_only_esp_name:GetValue() then
+
+            builder:Color(visible_only_esp_name_color:GetValue())
+            builder:AddTextTop(builder_entity:GetName())
+        end
+
+        --health
+        if visible_only_esp_health:GetValue() then
+
+            builder:Color(visible_only_esp_health_color:GetValue())
+            builder:AddBarLeft(builder_entity:GetHealth() / builder_entity:GetMaxHealth())
+        end
+
+        --returning current weapon
+        local current_weapon = builder_entity:GetPropEntity("m_hActiveWeapon")
+
+        --weapon
+        if visible_only_esp_weapon:GetValue() then
+            
+            --deleting weapon_, grenade_ by this string
+            local weapon_text = string.sub(tostring(current_weapon), string.find(tostring(current_weapon), "_") + 1, string.len(tostring(current_weapon)))
+
+            builder:Color(visible_only_esp_weapon_color:GetValue())
+            builder:AddTextBottom(weapon_text)
+        end
+
+        --ammo
+        if visible_only_esp_ammo:GetValue() then
+            builder:Color(visible_only_esp_ammo_color:GetValue())
+            builder:AddTextBottom(tostring(current_weapon:GetProp("m_iClip1") .. "/" .. current_weapon:GetProp("m_iPrimaryReserveAmmoCount")))
+        end
+    end
+end
+callbacks.Register("DrawESP", drawESP)
