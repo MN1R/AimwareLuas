@@ -1703,19 +1703,10 @@ local function drawUnderCrosshairIndicatorMainText()
         local char_color = colored_char_list[char] and {under_crosshair_indicator_color:GetValue()} or {text_color[1], text_color[2], text_color[3], 255}
 
         --drawing char
-        if char == 1 then
-
-            outlinedText(under_crosshair_indicator_x + scope_animation_value - math.floor(bleeding_text_size[1] / 2), 
-                        under_crosshair_indicator_y + constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER - math.floor(bleeding_text_size[2] / 2), 
-                        constants.BLEEDING_CHARS[char], fonts.keybinds_font, char_color, 
-                        fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
-        else
-
-            outlinedText(under_crosshair_indicator_x + sumFromTo(constants.BLEEDING_CHARS_SIZE, 1, char - 1) + scope_animation_value - math.floor(bleeding_text_size[1] / 2), 
-                        under_crosshair_indicator_y + constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER - math.floor(bleeding_text_size[2] / 2), 
-                        constants.BLEEDING_CHARS[char], fonts.keybinds_font, char_color, 
-                        fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
-        end
+        outlinedText(under_crosshair_indicator_x + sumFromTo(constants.BLEEDING_CHARS_SIZE, 1, char - 1) + scope_animation_value - math.floor(bleeding_text_size[1] / 2), 
+                     under_crosshair_indicator_y + constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER - math.floor(bleeding_text_size[2] / 2), 
+                     constants.BLEEDING_CHARS[char], fonts.keybinds_font, char_color, 
+                     fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
     end
 end
 
