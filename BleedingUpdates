@@ -8,3 +8,10 @@ Version V1.1.1 update:
 
 Version V1.1.2 update:
 1) Now jitters works perfect with fakelags all fakelag types
+
+Version V1.2 update:
+1) Added cool animation for under crosshair indicator
+2) Changed font for world damage marker
+
+c1) Now code is commented better
+c2) Some changes in code logic
