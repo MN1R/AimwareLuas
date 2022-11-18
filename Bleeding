@@ -289,6 +289,7 @@ local buy_bot_extra_ui =
 
 
 --@region MATH
+--returning sum of array elements from first to last indexes
 local function sumFromTo(array, first_sum, last_sum)
 
     local sum = 0
@@ -306,10 +307,13 @@ end
 
 
 --@region PROTECTED_CONVARS_PROPS
+--there safe props and convars, cuz they are should be installed once
+
 local convar_array = {}
 
 local function setConvar(name, value)
     
+    --checking for convar value is new
     if value and value ~= convar_array[name] or not convar_array[name] then
 
         --print(name .. " convar installed to the value: " .. value)
@@ -322,6 +326,7 @@ local prop_array = {}
 
 local function setProp(entity, name, value)
 
+    --checking for prop value is new
     if value and value ~= prop_array[name] or not prop_array[name] then
 
         --print(name .. " prop installed to the value: " .. value)
@@ -336,8 +341,8 @@ end
 
 
 --@region USEFUL_VALUES
---keybinds states handlers
 
+--variables, that using more than 1 time
 local handler_variables = 
 {
     --constant
@@ -382,29 +387,34 @@ local handler_variables =
 local functions_states = {}
 local constants = {}
 
+--getting current weapon group to use it
 local function getWeaponGroup()
     if not handler_variables.local_entity or not handler_variables.local_entity:IsAlive() then
         return "shared"
     end
 
     --get current weapon group
-    local current_weapon_group = "shared"
     local local_weapon_id = handler_variables.local_entity:GetWeaponID()
 
+    --iterating over weapon groups
     for group_name, group_weapons in pairs(handler_variables.SHORT_WEAPON_GROUP) do
+
+        --iterating over all weapon ids in weapon grops
         for weapon_id = 1, #group_weapons, 1 do
 
+            --if weapon id == our weapon rerunring group
             if local_weapon_id == group_weapons[weapon_id] then
-                current_weapon_group = group_name
 
-                break
+                return group_name
             end
         end
     end
 
-    return current_weapon_group
+    --returning shared if not find weapon group
+    return "shared"
 end
 
+--returning local player condition like moving, in air etc.
 local function getAntiAimCondition()
     
     --if our entity is not valid then returning general
@@ -415,6 +425,7 @@ local function getAntiAimCondition()
     --watching for m_flags
     local m_flags = handler_variables.local_entity:GetProp("m_fFlags")
 
+    --m_flags positions are basing on bitwise operator
     local in_air = ((bit.band(m_flags, handler_variables.FL_ONGROUND)) == 0)
     local ducking = ((bit.band(m_flags, handler_variables.FL_DUCKING)) == 2)
     ----------------------
@@ -443,6 +454,7 @@ local function getAntiAimCondition()
     end
 end
 
+--handling all varialbles, that using more that 1 time
 local function handlers()
 
     --entities
@@ -477,9 +489,10 @@ local function handlers()
         handler_variables.is_scoped = handler_variables.local_entity:GetPropBool("m_bIsScoped")
 
         handler_variables.ping = entities:GetPlayerResources():GetPropInt("m_iPing", client.GetLocalPlayerIndex())
-            
+        
         handler_variables.server_ip = engine.GetServerIP()
 
+        --getting server type by his ip
         if handler_variables.server_ip == "loopback" then
             handler_variables.server = "localhost"
         elseif string.find(handler_variables.server_ip, "A") then
@@ -488,17 +501,22 @@ local function handlers()
             handler_variables.server = handler_variables.server_ip
         end
 
+        --updating tickrate after reconnecting 
         if not handler_variables.tickrate_updated then
             handler_variables.tickrate = client.GetConVar("sv_maxcmdrate")
             handler_variables.tickrate_updated = true
         end
 
+        --calculating fake lag factor to correct work of jitters speed
         handler_variables.fake_lag_factor = 2 + math.floor(1 + (globals.CurTime() - handler_variables.local_entity:GetPropFloat("m_flSimulationTime")) / globals.TickInterval())
     else
+
+        --showing, that we should change tickrate after reconnect
         handler_variables.tickrate_updated = false
     end
 end
 
+--getting all states of keybinds
 local function getKeybindsStates()
 
     --RAGE functions
@@ -534,20 +552,24 @@ end
 
 
 --@region ANTI_AIM_FUNCTIONS
+
+--clamping yaw between -180 and 180
 local function clampYaw(yaw)
 
-    --clamping our yaw
     while yaw > 180 do yaw = yaw - 360 end
     while yaw < -180 do yaw = yaw + 360 end
 
     return yaw
 end
 
+--inverting desync 
 local desync_inverted = false
 
 local function invertDesync()
 
     if anti_aim_binds_ui.desync_inverter:GetValue() ~= 0 and input.IsButtonPressed(anti_aim_binds_ui.desync_inverter:GetValue()) then
+
+        --inverting
         desync_inverted = not desync_inverted
     end
 end
@@ -604,7 +626,7 @@ local jitter_side_swapper = 1;
 local jitter_yaw = 0;
 local random_yaw = 0;
 
---all jitter types 
+--all jitter types, swapper works like side switcher
 local function staticJitter()
 
     if anti_aim_elements[getAntiAimCondition()].yaw_modifier:GetValue() == 0 then
@@ -708,6 +730,8 @@ end
 
 
 --@region YAW_MANUALS
+
+--all yaw function, which using binds
 local yaw_variables = 
 {
     legit_yaw = 0, 
@@ -718,39 +742,57 @@ local yaw_variables =
     manual_forward = false
 }
 
+--manual types
 local manuals_keys = 
 {   
     anti_aim_binds_ui.manual_left, anti_aim_binds_ui.manual_back, 
     anti_aim_binds_ui.manual_right, anti_aim_binds_ui.manual_forward
 };
+--manual keyboxes
 local manuals_values = {yaw_variables.manual_left, yaw_variables.manual_back, yaw_variables.manual_right, yaw_variables.manual_forward};
-local manual_yaw_values = {-90, 0, 90, 180};
 
+--manual values
+constants.MANUAL_YAW_VALUES = {-90, 0, 90, 180};
+
+--function, that showing, have we active manuals or not
 local function isManualActive()
 
-    local manual_active = false
-    local active_manual_number;
-
+    --iterating over all manuals keyboxes 
     for manual = 1, #manuals_values, 1 do
+
+        --if keybox active then returning, that manual active and his number
         if manuals_values[manual] then
-            manual_active = true
-            active_manual_number = manual
+            
+            return {true, manual}
         end
     end
 
-    return {manual_active, active_manual_number}
+    --else returning, that manuals inactive
+    return {false, nil}
 end
 
+--setting manuals
 local function manualAntiAims()
 
+    --iterating over all manual keyboxes
     for manual = 1, #manuals_keys, 1 do
+
+        --if its active then
         if manuals_keys[manual]:GetValue() ~= 0 and input.IsButtonPressed(manuals_keys[manual]:GetValue()) then
+
+            --switching manual
             manuals_values[manual] = not manuals_values[manual]
 
             --if manual active then disable other manuals
             if manuals_values[manual] then
+
+                --iterating over all other manuals to disable them
                 for i = 1, #manuals_values, 1 do
+
+                    --when current ~= active manual
                     if i ~= manual then
+
+                        --setting it inactive
                         manuals_values[i] = false
                     end
                 end
@@ -759,20 +801,27 @@ local function manualAntiAims()
     end
 end
 
+--calculating yaw of manuals
 local function calculateManualYaw()
 
+    --if manual is not active
     if anti_aim_other_ui.legit_anti_aim:GetValue() or not isManualActive()[1] then
         manual_yaw = 0
+    
+    --if its active
     else
-        manual_yaw = manual_yaw_values[isManualActive()[2]]
+        manual_yaw = constants.MANUAL_YAW_VALUES[isManualActive()[2]]
     end
 end 
 
+--legit aa base
 local function legitAntiAims()
 
+    --legit yaw its 180, when legit aa is active
     yaw_variables.legit_yaw = anti_aim_other_ui.legit_anti_aim:GetValue() and 180 or 0
 end
 
+--controling pitch, at targets, at edjes, based on legit aa and manuals
 local function controleAntiAimStates()
 
     if anti_aim_other_ui.legit_anti_aim:GetValue() then
@@ -791,6 +840,7 @@ local function controleAntiAimStates()
     end
 end
 
+--calling all manuals functions
 local function callManualsFunctions()
     manualAntiAims();
     calculateManualYaw();
@@ -803,8 +853,10 @@ end
 --@region MAIN_YAW 
 local main_yaw = 0;
 
+--calculating main yaw, which basing on yaw right and left
 local function calculateMainYaw()
 
+    --checking for advanced mode
     if handler_variables.advanced_mode_enabled then
         main_yaw = desync_inverted and anti_aim_elements[getAntiAimCondition()].yaw_angle_right:GetValue() or anti_aim_elements[getAntiAimCondition()].yaw_angle_left:GetValue()
     else
@@ -815,6 +867,8 @@ end
 
 
 --@region DESYNC_TYPE
+
+--showing which desync type is selected
 local function getDesyncType()
 
     return ((anti_aim_elements[getAntiAimCondition()].desync_type:GetValue() == 0 and handler_variables.advanced_mode_enabled) 
@@ -826,6 +880,7 @@ end
 --@region SIMPLE_JITTER
 local jitter_angle_simple = 0;
 
+--jitter, that using in simple preset
 local function simpleJitter()
 
     if not handler_variables.advanced_mode_enabled and handler_variables.real_time - static_yaw_time >= (handler_variables.desync_switch_time * handler_variables.TICK_TIME) then
@@ -842,12 +897,15 @@ end
 --@region SET_FINISH_YAW
 local current_jitter_angle = 0;
 
+--setting all yaws
 local function setYaw()
 
+    --isolated dessync jitter disabling all yaw jitters
     if anti_aim_elements[getAntiAimCondition()].desync_modifier:GetValue() == 3 then
-        jitter_yaw = 0
+        current_jitter_angle = 0
     end
 
+    --getting current yaw, based on advanced preset is enabled or not
     current_jitter_angle = handler_variables.advanced_mode_enabled and jitter_yaw or jitter_angle_simple
 
     gui.SetValue("rbot.antiaim.base", tostring(clampYaw(180 + current_jitter_angle + manual_yaw + yaw_variables.legit_yaw + main_yaw)) .. getDesyncType())
@@ -861,6 +919,7 @@ local desync_side_swapper = 1;
 
 local desync_angle = 0;
 
+--desync_side_swapper the same with jitter_side_swapper
 local function staticDesync()
 
     if anti_aim_elements[getAntiAimCondition()].desync_modifier:GetValue() == 0 or anti_aim_elements[getAntiAimCondition()].desync_modifier:GetValue() == 2 then
@@ -922,6 +981,7 @@ end
 local desync_angle_simple = 0;
 constants.DESYNC_ANGLE_PER_POSITION = 9.68;
 
+--desync, which using in simple preset
 local function simpleDesync()
 
     if not handler_variables.advanced_mode_enabled then
@@ -935,6 +995,8 @@ end
 
 
 --@region SET_FINISH_DESYNC
+
+--setting desync rage
 local function setDesync()
     gui.SetValue("rbot.antiaim.base.rotation", handler_variables.advanced_mode_enabled and desync_angle or desync_angle_simple)
 end
@@ -945,6 +1007,8 @@ end
 
 
 --@region RAGE_PART
+
+--separate binds for HS and DT
 local function setExploits()
 
     if handler_variables.current_weapon_group ~= "zeus" then
@@ -1061,6 +1125,7 @@ end
 --@region ANIMATION_SCALE
 local MIDDLE_FPS_ANIMATION_VALUE = 450;
 
+--calculating our animation's scale based on frametime, if u have 450 fps - ur animation scale is 1
 local function getAnimationScale()
     return MIDDLE_FPS_ANIMATION_VALUE / handler_variables.fps
 end
@@ -1075,7 +1140,8 @@ local fonts =
 {
     keybinds_font = draw.CreateFont("Verdana", 12, 750),
     keybinds_font_outlined = draw.CreateFont("Verdana", 12, 750, 1),
-    emoji_font = draw.CreateFont("Tahoma", 22)
+    emoji_font = draw.CreateFont("Tahoma", 22),
+    world_damage_font = draw.CreateFont("Bahnschrift", 18)
 }
 
 local preparation_finished = false;
@@ -1086,6 +1152,7 @@ local preparation_time = math.random(15, 30) / 10
 
 constants.PREPARATION_DELAY = 0.75
 
+--preparing script for loading, creating all gui
 local function scriptPreparing()
 
     local delta_time = handler_variables.real_time - load_time
@@ -1116,110 +1183,141 @@ local function scriptPreparing()
     if delta_time > preparation_time + constants.PREPARATION_DELAY then preparation_finished = true end
 end
 
+--there array, which will include all hits
 local hit_array = {};
+
+--dinamical animation length of screen hitmarker
 local animation_length = 0;
 
 constants.HITMARKER_ANIMATION_LENGTH = 7;
 constants.TIME_OF_VISIBILITY = 2;
 constants.ALPHA_BY_TIME = 255 / constants.TIME_OF_VISIBILITY;
 
+--listening for player_hurt event and filling hit array
 local function getHitEvent(event)
 
-    if event then
-        if event:GetName() == "player_hurt" then
-            if client.GetPlayerIndexByUserID(event:GetInt("attacker")) == client.GetLocalPlayerIndex() 
-                and client.GetPlayerIndexByUserID(event:GetInt("userid")) ~= client.GetLocalPlayerIndex() then
+    --checking, that event is not nil
+    if not event then 
+        return
+    end
 
-                local hit_position = entities.GetByUserID(event:GetInt("userid")):GetHitboxPosition(event:GetInt("hitgroup"))
+    --listening for player hurt event
+    if event:GetName() == "player_hurt" then
 
-                hit_array[#hit_array + 1] = 
-                {   handler_variables.real_time + constants.TIME_OF_VISIBILITY, 
-                    hit_position.x + (0.1 * math.random(-40, 40)), hit_position.y, hit_position.z + (0.1 * math.random(-20, 20)),
-                    event:GetInt("dmg_health"), event:GetInt("hitgroup") == 1
-                }
+        --checking, that attacker is our entity
+        if client.GetPlayerIndexByUserID(event:GetInt("attacker")) == client.GetLocalPlayerIndex() 
+            and client.GetPlayerIndexByUserID(event:GetInt("userid")) ~= client.GetLocalPlayerIndex() then
+            
+            --calculating hit_position
+            local hit_position = entities.GetByUserID(event:GetInt("userid")):GetHitboxPosition(event:GetInt("hitgroup"))
 
-                animation_length = constants.HITMARKER_ANIMATION_LENGTH
-            end
+            --inseting everything into array + randomisating position of hit marker
+            hit_array[#hit_array + 1] = 
+            {   handler_variables.real_time + constants.TIME_OF_VISIBILITY, 
+                hit_position.x + (0.1 * math.random(-40, 40)), 
+                hit_position.y, 
+                hit_position.z + (0.1 * math.random(-20, 20)),
+                event:GetInt("dmg_health"), event:GetInt("hitgroup") == 1
+            }
+
+            --reseting animation length
+            animation_length = constants.HITMARKER_ANIMATION_LENGTH
         end
     end
 end
 
+--deleting old data of array
 local function clearHitArray()
 
     --removing elements by time
     for hits = 1, #hit_array, 1 do
-        if hit_array[hits] then
-            if hit_array[hits][1] - handler_variables.real_time < 0 then
-                table.remove(hit_array, hits)
-            end
+
+        --if element has old data then removing it
+        if hit_array[hits] and hit_array[hits][1] - handler_variables.real_time < 0 then
+
+            table.remove(hit_array, hits)
         end
     end
 end
 
+--drawing world hitmarker
 local function worldHitmarker()
 
-    if visuals_hit_info_ui.world_hitmarker:GetValue() then
-        for hits = 1, #hit_array, 1 do
+    --checking for enable
+    if not visuals_hit_info_ui.world_hitmarker:GetValue() then
+        return 
+    end
 
-            --check for valid 
-            if not hit_array[hits] then return end
+    --iterating over all hits
+    for hits = 1, #hit_array, 1 do
 
-            local hit = hit_array[hits]
-            local hit_position_screen = {client.WorldToScreen(Vector3(hit[2], hit[3], hit[4]))}
+        --checking for valid 
+        if not hit_array[hits] then return end
 
-            --hitmarker
-            if hit_position_screen[1] and hit_position_screen[2] then
-                local DISTANCE_FROM_CENTER = 2
-                local LENGTH = 5
+        local hit = hit_array[hits]
+        local hit_position_screen = {client.WorldToScreen(Vector3(hit[2], hit[3], hit[4]))}
 
-                local color = {world_hitmarker_color:GetValue()}
+        --hitmarker cross
+        if hit_position_screen[1] and hit_position_screen[2] then
 
-                draw.Color(color[1], color[2], color[3],  (hit[1] - handler_variables.real_time) * constants.ALPHA_BY_TIME)
+            local DISTANCE_FROM_CENTER = 2
+            local LENGTH = 5
 
-                --right side
-                draw.Line(hit_position_screen[1] + DISTANCE_FROM_CENTER, hit_position_screen[2] + DISTANCE_FROM_CENTER, hit_position_screen[1] 
-                         + (DISTANCE_FROM_CENTER + LENGTH), hit_position_screen[2] + (DISTANCE_FROM_CENTER + LENGTH))
+            local color = {world_hitmarker_color:GetValue()}
 
-                draw.Line(hit_position_screen[1] + DISTANCE_FROM_CENTER, hit_position_screen[2] - DISTANCE_FROM_CENTER, hit_position_screen[1]
-                         + (DISTANCE_FROM_CENTER + LENGTH),  hit_position_screen[2] - (DISTANCE_FROM_CENTER + LENGTH))
+            draw.Color(color[1], color[2], color[3],  (hit[1] - handler_variables.real_time) * constants.ALPHA_BY_TIME)
 
-                --left side
-                draw.Line(hit_position_screen[1] - DISTANCE_FROM_CENTER, hit_position_screen[2] + DISTANCE_FROM_CENTER, hit_position_screen[1] 
-                         - (DISTANCE_FROM_CENTER + LENGTH), hit_position_screen[2] + (DISTANCE_FROM_CENTER + LENGTH))
+            --right side
+            draw.Line(hit_position_screen[1] + DISTANCE_FROM_CENTER, hit_position_screen[2] + DISTANCE_FROM_CENTER, hit_position_screen[1] 
+                      + (DISTANCE_FROM_CENTER + LENGTH), hit_position_screen[2] + (DISTANCE_FROM_CENTER + LENGTH))
 
-                draw.Line(hit_position_screen[1] - DISTANCE_FROM_CENTER, hit_position_screen[2] - DISTANCE_FROM_CENTER, hit_position_screen[1] 
-                         - (DISTANCE_FROM_CENTER + LENGTH), hit_position_screen[2] - (DISTANCE_FROM_CENTER + LENGTH))
-            end
+            draw.Line(hit_position_screen[1] + DISTANCE_FROM_CENTER, hit_position_screen[2] - DISTANCE_FROM_CENTER, hit_position_screen[1]
+                      + (DISTANCE_FROM_CENTER + LENGTH),  hit_position_screen[2] - (DISTANCE_FROM_CENTER + LENGTH))
+
+            --left side
+            draw.Line(hit_position_screen[1] - DISTANCE_FROM_CENTER, hit_position_screen[2] + DISTANCE_FROM_CENTER, hit_position_screen[1] 
+                      - (DISTANCE_FROM_CENTER + LENGTH), hit_position_screen[2] + (DISTANCE_FROM_CENTER + LENGTH))
+
+            draw.Line(hit_position_screen[1] - DISTANCE_FROM_CENTER, hit_position_screen[2] - DISTANCE_FROM_CENTER, hit_position_screen[1] 
+                      - (DISTANCE_FROM_CENTER + LENGTH), hit_position_screen[2] - (DISTANCE_FROM_CENTER + LENGTH))
         end
     end
 end
 
+--drawing world damage marker
 local function worldDamageMarker()
 
-    if visuals_hit_info_ui.world_damage_marker:GetValue() then
-        for hits = 1, #hit_array, 1 do
+    --checking for enable
+    if not visuals_hit_info_ui.world_damage_marker:GetValue() then
+        return 
+    end
 
-            --check for valid 
-            if not hit_array[hits] then return end
+    --iterating over all hits
+    for hits = 1, #hit_array, 1 do
 
-            local hit = hit_array[hits]
-            local hit_position_screen = {client.WorldToScreen(Vector3(hit[2], hit[3], hit[4]))}
+        --check for valid 
+        if not hit_array[hits] then return end
 
-            --damage marker
-            if hit_position_screen[1] and hit_position_screen[2]then
-                local DISTANCE_FROM_CENTER = 10
-                local size_of_damage = {draw.GetTextSize(hit[5])}
+        local hit = hit_array[hits]
+        local hit_position_screen = {client.WorldToScreen(Vector3(hit[2], hit[3], hit[4]))}
 
-                local color = {world_damage_marker_color:GetValue()}
-                local color_headshot = {world_damage_marker_color_headshot:GetValue()}
+        --damage marker
+        if hit_position_screen[1] and hit_position_screen[2]then
 
-                local current_color = hit[6] 
-                and {color_headshot[1], color_headshot[2], color_headshot[3], (hit[1] - handler_variables.real_time) * constants.ALPHA_BY_TIME} 
-                or {color[1], color[2], color[3], (hit[1] - handler_variables.real_time) * constants.ALPHA_BY_TIME}
+            draw.SetFont(fonts.world_damage_font)
+            local DISTANCE_FROM_CENTER = 10
+            local size_of_damage = {draw.GetTextSize(tostring(hit[5]))}
 
-                draw.Color(current_color[1], current_color[2], current_color[3], current_color[4])
-                draw.Text(hit_position_screen[1] - size_of_damage[1] / 2, hit_position_screen[2] - DISTANCE_FROM_CENTER - size_of_damage[2], hit[5])
-            end
+            local color = {world_damage_marker_color:GetValue()}
+            local color_headshot = {world_damage_marker_color_headshot:GetValue()}
+
+            local current_color = hit[6] 
+            and {color_headshot[1], color_headshot[2], color_headshot[3], (hit[1] - handler_variables.real_time) * constants.ALPHA_BY_TIME} 
+            or {color[1], color[2], color[3], (hit[1] - handler_variables.real_time) * constants.ALPHA_BY_TIME}
+
+            --drawing damage text
+            draw.Color(current_color[1], current_color[2], current_color[3], current_color[4])
+            draw.Text(hit_position_screen[1] - size_of_damage[1] / 2, hit_position_screen[2] - DISTANCE_FROM_CENTER - size_of_damage[2], tostring(hit[5]))
         end
     end
 end
@@ -1229,26 +1327,33 @@ constants.CIRCLE_PART = 360 / 4;
 constants.CIRCLE_SIZE = 6;
 constants.CIRCLE_DISTANCE_FROM_CENTER = 5;
 
+--drawing screen hitmarker
 local function screenHitmarker()
     
-    if visuals_hit_info_ui.screen_hitmarker:GetValue() and animation_length > 0 then
-        animation_length = animation_length - (constants.SCREEN_HITMARKER_ANIMATION_SPEED * getAnimationScale())
-
-        local color = {screen_hitmarker_color:GetValue()}
-
-        segment(screen_width / 2 + (constants.HITMARKER_ANIMATION_LENGTH - animation_length), screen_height / 2 + (constants.HITMARKER_ANIMATION_LENGTH - animation_length), 
-        constants.CIRCLE_PART * 0, constants.CIRCLE_PART, constants.CIRCLE_DISTANCE_FROM_CENTER, constants.CIRCLE_SIZE, {color[1], color[2], color[3]})
-
-        segment(screen_width / 2 + (constants.HITMARKER_ANIMATION_LENGTH - animation_length), screen_height / 2 - (constants.HITMARKER_ANIMATION_LENGTH - animation_length), 
-        constants.CIRCLE_PART, constants.CIRCLE_PART * 2, constants.CIRCLE_DISTANCE_FROM_CENTER, constants.CIRCLE_SIZE, {color[1], color[2], color[3]})
-
-        segment(screen_width / 2 - (constants.HITMARKER_ANIMATION_LENGTH - animation_length), screen_height / 2 - (constants.HITMARKER_ANIMATION_LENGTH - animation_length), 
-        constants.CIRCLE_PART * 2, constants.CIRCLE_PART * 3, constants.CIRCLE_DISTANCE_FROM_CENTER, constants.CIRCLE_SIZE, {color[1], color[2], color[3]})
-
-        segment(screen_width / 2 - (constants.HITMARKER_ANIMATION_LENGTH - animation_length), screen_height / 2 + (constants.HITMARKER_ANIMATION_LENGTH - animation_length), 
-        constants.CIRCLE_PART * 3, constants.CIRCLE_PART * 4, constants.CIRCLE_DISTANCE_FROM_CENTER, constants.CIRCLE_SIZE, {color[1], color[2], color[3]})
-
+    --checking for enable and animation length
+    if not visuals_hit_info_ui.screen_hitmarker:GetValue() or not (animation_length > 0) then
+        return
     end
+
+    animation_length = animation_length - (constants.SCREEN_HITMARKER_ANIMATION_SPEED * getAnimationScale())
+
+    local color = {screen_hitmarker_color:GetValue()}
+
+    --segments - base of this hitmarker
+
+    --right side
+    segment(screen_width / 2 + (constants.HITMARKER_ANIMATION_LENGTH - animation_length), screen_height / 2 + (constants.HITMARKER_ANIMATION_LENGTH - animation_length), 
+    constants.CIRCLE_PART * 0, constants.CIRCLE_PART, constants.CIRCLE_DISTANCE_FROM_CENTER, constants.CIRCLE_SIZE, {color[1], color[2], color[3]})
+
+    segment(screen_width / 2 + (constants.HITMARKER_ANIMATION_LENGTH - animation_length), screen_height / 2 - (constants.HITMARKER_ANIMATION_LENGTH - animation_length), 
+    constants.CIRCLE_PART, constants.CIRCLE_PART * 2, constants.CIRCLE_DISTANCE_FROM_CENTER, constants.CIRCLE_SIZE, {color[1], color[2], color[3]})
+
+    --left side
+    segment(screen_width / 2 - (constants.HITMARKER_ANIMATION_LENGTH - animation_length), screen_height / 2 - (constants.HITMARKER_ANIMATION_LENGTH - animation_length), 
+    constants.CIRCLE_PART * 2, constants.CIRCLE_PART * 3, constants.CIRCLE_DISTANCE_FROM_CENTER, constants.CIRCLE_SIZE, {color[1], color[2], color[3]})
+
+    segment(screen_width / 2 - (constants.HITMARKER_ANIMATION_LENGTH - animation_length), screen_height / 2 + (constants.HITMARKER_ANIMATION_LENGTH - animation_length), 
+    constants.CIRCLE_PART * 3, constants.CIRCLE_PART * 4, constants.CIRCLE_DISTANCE_FROM_CENTER, constants.CIRCLE_SIZE, {color[1], color[2], color[3]})
 end
 
 
@@ -1260,8 +1365,10 @@ local keybind_states_values = {};
 constants.KEYBINDS_ANIMATION_SPEED = 0.15;
 constants.KEYBINDS_ANIMATION_LENGTH = 15;
 
+--making animations of keybinds
 local function keybindsAnimations()
     
+    --selecting current states list
     if gui.GetValue("lbot.master") then
         keybind_states_values = {functions_states.aimbot_active, functions_states.triggerbot_active, functions_states.auto_fire_active, functions_states.autowall_active, 
                                  functions_states.resolver_active, functions_states.legit_aa_active, functions_states.backtrack_active}
@@ -1276,7 +1383,10 @@ local function keybindsAnimations()
         keybind_states_type = {"[toggled]", "[toggled]", "[toggled]", "[holding]", "[holding]", "[toggled]", "[toggled]"}
     end
 
+    --iterating over all states
     for state = 1, #keybind_states_values, 1 do
+
+        --animating them
         if keybind_states_values[state] then
            keybind_states_animations[state] = keybind_states_animations[state] + constants.KEYBINDS_ANIMATION_SPEED * getAnimationScale()
 
@@ -1298,14 +1408,19 @@ constants.MAIN_ANIMATION_SPEED = 0.25;
 constants.MAIN_ANIMATION_START_VALUE = 7;
 constants.main_animation_value = 0;
 
+--main animation of keybinds's head text
 local function mainKeybindsAnimation()
 
+    --checking, that all states are disabling
     if sumFromTo(keybind_states_animations, 1, #keybind_states_animations) < constants.MAIN_ANIMATION_START_VALUE then
+
         constants.main_animation_value = constants.main_animation_value - constants.MAIN_ANIMATION_SPEED * getAnimationScale()
 
         if constants.main_animation_value < 0 then
             constants.main_animation_value = 0
         end
+
+    --if state is enabling
     else
 
         constants.main_animation_value = constants.main_animation_value + constants.MAIN_ANIMATION_SPEED * getAnimationScale()
@@ -1323,8 +1438,10 @@ constants.KEYBINDS_DISTANCE_FROM_HEADER = 10;
 local header_color, background_color, text_color, outline_color = {25, 25, 25}, {50, 50, 50}, {255, 255, 255}, {10, 10, 10};
 local delta_x, delta_y = 0, 0;
 
+--contoling position of keybinds | weapon info
 local function controleVisualsPostion()
 
+    --all gui, that has positions of visuals
     local visuals_positions = {{"esp.visuals_tab.keybinds_position_x", "esp.visuals_tab.keybinds_position_y"},
                                {"esp.visuals_tab.weapon_info_position_x", "esp.visuals_tab.weapon_info_position_y"}
                               }
@@ -1350,6 +1467,7 @@ local function controleVisualsPostion()
             local distance = vector.Distance(gui.GetValue(visuals_positions[visual][1]), gui.GetValue(visuals_positions[visual][2]), 0, 
                                              handler_variables.mouse_pos[1], handler_variables.mouse_pos[2], 0)
             
+            --returning the closest one
             if distance < closest_distance then
                 closest = visual
                 closest_distance = distance
@@ -1373,7 +1491,10 @@ local function controleVisualsPostion()
     end
 end
 
+--selecting black | gray color theme
 local function selectColorTheme()
+
+    --colors for themes
     if visuals_user_info_ui.color_theme:GetValue() == 0 then
         header_color, background_color, text_color, outline_color = {25, 25, 25}, {50, 50, 50}, {255, 255, 255}, {10, 10, 10}
     else
@@ -1381,6 +1502,7 @@ local function selectColorTheme()
     end
 end
 
+--drawing keybinds background and header
 local function drawKeybindsBase()
 
     draw.Color(header_color[1], header_color[2], header_color[3], constants.main_animation_value * 10.2)
@@ -1394,8 +1516,11 @@ local function drawKeybindsBase()
                     sumFromTo(keybind_states_animations, 1, #keybind_states_animations) + constants.KEYBINDS_DISTANCE_FROM_HEADER)
 end
 
+--decoding the emoji by bytes
+--http://www.unit-conversion.info/texttools/ascii/
 local EMOJI_KEYBOARD = string.char(226, 140, 168, 239, 184);
 
+--drawing header text 
 local function drawKeybindsHeaderText()
 
     draw.SetFont(fonts.keybinds_font)
@@ -1406,7 +1531,7 @@ local function drawKeybindsHeaderText()
 
     draw.Color(text_color[1], text_color[2], text_color[3], constants.main_animation_value * 10)
     draw.Text(visuals_user_info_ui.keybinds_position_x:GetValue() + constants.KEYBINDS_DISTANCE_FROM_BORDER,
-              visuals_user_info_ui.keybinds_position_y:GetValue() + math.floor(constants.KEYBINDS_HEADER_SIZE / 2) - math.floor(emoji_size[2] / 2) - 1, EMOJI_KEYBOARD)
+              visuals_user_info_ui.keybinds_position_y:GetValue() + math.floor(constants.KEYBINDS_HEADER_SIZE / 2) - math.floor(emoji_size[2] / 2) - 2, EMOJI_KEYBOARD)
 
     outlinedText(visuals_user_info_ui.keybinds_position_x:GetValue() + constants.KEYBINDS_DISTANCE_FROM_BORDER + emoji_size[1] - 12,
                  visuals_user_info_ui.keybinds_position_y:GetValue() + math.floor(constants.KEYBINDS_HEADER_SIZE / 2) - math.floor(keybinds_name_size[2] / 2) - 1, "Keybinds",
@@ -1414,20 +1539,28 @@ local function drawKeybindsHeaderText()
                  fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], constants.main_animation_value * 10})
 end
 
+--drawing all states of keybinds
 local function drawKeybindsStates()
 
+    --iterating over all states
     for state = 1, #keybind_states_values, 1 do
+
+        --if it active
         if keybind_states_animations[state] > 0 then
+
+            --drawing it
             draw.SetFont(fonts.keybinds_font)
             local keybinds_text_size = {draw.GetTextSize(keybind_states_text[state])}
             local keybinds_type_size = {draw.GetTextSize(keybind_states_type[state])}
 
+            --state name
             outlinedText(visuals_user_info_ui.keybinds_position_x:GetValue() + constants.KEYBINDS_DISTANCE_FROM_BORDER, 
                         visuals_user_info_ui.keybinds_position_y:GetValue() + constants.KEYBINDS_DISTANCE_FROM_HEADER + sumFromTo(keybind_states_animations, 1, state)
                         - constants.KEYBINDS_ANIMATION_LENGTH + constants.KEYBINDS_HEADER_SIZE - math.floor(keybinds_text_size[2] / 2), keybind_states_text[state],
                         fonts.keybinds_font, {text_color[1], text_color[2], text_color[3], keybind_states_animations[state] * 17}, 
                         fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], keybind_states_animations[state] * 17})
 
+            --state type
             outlinedText(visuals_user_info_ui.keybinds_position_x:GetValue() + constants.KEYBINDS_SIZE - constants.KEYBINDS_DISTANCE_FROM_BORDER - keybinds_type_size[1],
                         visuals_user_info_ui.keybinds_position_y:GetValue() + constants.KEYBINDS_DISTANCE_FROM_HEADER + sumFromTo(keybind_states_animations, 1, state)
                         - constants.KEYBINDS_ANIMATION_LENGTH + constants.KEYBINDS_HEADER_SIZE - math.floor(keybinds_type_size[2] / 2), keybind_states_type[state], 
@@ -1442,6 +1575,7 @@ constants.WEAPON_INFO_SIZE = 30;
 --http://www.unit-conversion.info/texttools/ascii/
 constants.INFO_EMOJI = string.char(240, 159, 155, 136);
 
+--drawing weapon info base(background, header)
 local function drawWeaponInfo()
 
     draw.Color(header_color[1], header_color[2], header_color[3], 255)
@@ -1461,7 +1595,7 @@ local function drawWeaponInfo()
 
     draw.Color(text_color[1], text_color[2], text_color[3], 255)
     draw.Text(visuals_user_info_ui.weapon_info_position_x:GetValue() + constants.KEYBINDS_DISTANCE_FROM_BORDER,
-              visuals_user_info_ui.weapon_info_position_y:GetValue() + math.floor(constants.KEYBINDS_HEADER_SIZE / 2) - math.floor(info_emoji_size[2] / 2) - 1, constants.INFO_EMOJI)
+              visuals_user_info_ui.weapon_info_position_y:GetValue() + math.floor(constants.KEYBINDS_HEADER_SIZE / 2) - math.floor(info_emoji_size[2] / 2) - 2, constants.INFO_EMOJI)
 
     outlinedText(visuals_user_info_ui.weapon_info_position_x:GetValue() + constants.KEYBINDS_DISTANCE_FROM_BORDER + info_emoji_size[1] + 3,
                 visuals_user_info_ui.weapon_info_position_y:GetValue() + math.floor(constants.KEYBINDS_HEADER_SIZE / 2) - math.floor(keybinds_name_size[2] / 2) - 1, "Weapon Info",
@@ -1469,6 +1603,7 @@ local function drawWeaponInfo()
                 fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
 end
 
+--drawing all text in weapon info
 local function drawWeaponInfoText()
 
     draw.SetFont(fonts.keybinds_font)
@@ -1481,16 +1616,19 @@ local function drawWeaponInfoText()
     local damage_text_size = {draw.GetTextSize(damage_text)}
     local hitchance_text_size = {draw.GetTextSize(hitchance_text)}
 
+    --weapon group
     outlinedText(visuals_user_info_ui.weapon_info_position_x:GetValue() + constants.KEYBINDS_DISTANCE_FROM_BORDER, 
                  visuals_user_info_ui.weapon_info_position_y:GetValue() + constants.KEYBINDS_HEADER_SIZE + (constants.WEAPON_INFO_SIZE / 2) - math.floor(weapon_group_name_size[2] / 2) + 3,
                  weapon_group, fonts.keybinds_font, {text_color[1], text_color[2], text_color[3], 255}, 
                  fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
 
+    --damage
     outlinedText(visuals_user_info_ui.weapon_info_position_x:GetValue() + constants.KEYBINDS_SIZE - constants.KEYBINDS_DISTANCE_FROM_BORDER - damage_text_size[1], 
                  visuals_user_info_ui.weapon_info_position_y:GetValue() + constants.KEYBINDS_HEADER_SIZE + (constants.WEAPON_INFO_SIZE / 2) - damage_text_size[2] - 3,
                  damage_text, fonts.keybinds_font, {text_color[1], text_color[2], text_color[3], 255}, 
                  fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})   
     
+    --hitchance
     outlinedText(visuals_user_info_ui.weapon_info_position_x:GetValue() + constants.KEYBINDS_SIZE - constants.KEYBINDS_DISTANCE_FROM_BORDER - hitchance_text_size[1], 
                  visuals_user_info_ui.weapon_info_position_y:GetValue() + constants.KEYBINDS_HEADER_SIZE + (constants.WEAPON_INFO_SIZE / 2) + hitchance_text_size[2] + 3,
                  hitchance_text, fonts.keybinds_font, {text_color[1], text_color[2], text_color[3], 255}, 
@@ -1498,13 +1636,90 @@ local function drawWeaponInfoText()
 end
 
 
+constants.CHAR_ANIMATION_SPEED = 0.2
+constants.BLEEDING_CHARS_SIZE = {}
+constants.BLEEDING_CHARS = {"b", "l", "e", "e", "d", "i", "n", "g"};
+constants.MAX_CHARS = 4
+local colored_char_list = {false, false, false, false, true, true, true, true};
+local char_animation_value = 0
+
 constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER = 30;
 constants.SCOPE_ANIMATION_SPEED = 0.5;
 constants.SCOPE_ANIMATION_LENGTH = 40;
 constants.UNDER_CROSSHAIR_ANIMATION_SCALE = 50;
+
 local scope_animation_value = 0;
 local under_crosshair_indicator_x, under_crosshair_indicator_y = 0, 0;
 
+--drawing main text with special animation
+local function drawUnderCrosshairIndicatorMainText()
+    
+    --if our desync is inverted then switch colored chars
+    if not desync_inverted then
+
+        --setting uncolored, non active side chars(right side)
+        for char = 5, #colored_char_list, 1 do
+            colored_char_list[char] = false
+        end
+
+        --setting colored active side char with animation
+        char_animation_value = char_animation_value - constants.CHAR_ANIMATION_SPEED
+        if char_animation_value < -constants.MAX_CHARS then
+            char_animation_value = -constants.MAX_CHARS
+        end
+
+        colored_char_list[5 + math.floor(char_animation_value)] = true
+    else
+        --setting uncolored, non active side chars(left side)
+        for char = 1, 4, 1 do
+            colored_char_list[char] = false
+        end
+
+        --setting colored active side char with animation
+        char_animation_value = char_animation_value + constants.CHAR_ANIMATION_SPEED
+        if char_animation_value > constants.MAX_CHARS then
+            char_animation_value = constants.MAX_CHARS
+        end
+
+        colored_char_list[4 + math.floor(char_animation_value)] = true
+    end
+
+    --filling text_sizes
+    draw.SetFont(fonts.keybinds_font)
+    local bleeding_text_size = {draw.GetTextSize("bleeding")}
+
+    for char = 1, #constants.BLEEDING_CHARS, 1 do   
+
+        --inserting text sizes
+        local char_size = {draw.GetTextSize(constants.BLEEDING_CHARS[char])}
+        if not constants.BLEEDING_CHARS_SIZE[char] then
+            constants.BLEEDING_CHARS_SIZE[char] = char_size[1]
+        end
+    end
+
+    --iterating over all chars to set color
+    for char = 1, #constants.BLEEDING_CHARS, 1 do   
+
+        local char_color = colored_char_list[char] and {under_crosshair_indicator_color:GetValue()} or {text_color[1], text_color[2], text_color[3], 255}
+
+        --drawing char
+        if char == 1 then
+
+            outlinedText(under_crosshair_indicator_x + scope_animation_value - math.floor(bleeding_text_size[1] / 2), 
+                        under_crosshair_indicator_y + constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER - math.floor(bleeding_text_size[2] / 2), 
+                        constants.BLEEDING_CHARS[char], fonts.keybinds_font, char_color, 
+                        fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
+        else
+
+            outlinedText(under_crosshair_indicator_x + sumFromTo(constants.BLEEDING_CHARS_SIZE, 1, char - 1) + scope_animation_value - math.floor(bleeding_text_size[1] / 2), 
+                        under_crosshair_indicator_y + constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER - math.floor(bleeding_text_size[2] / 2), 
+                        constants.BLEEDING_CHARS[char], fonts.keybinds_font, char_color, 
+                        fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
+        end
+    end
+end
+
+--drawing under crosshair indicators
 local function drawUnderCrosshairIndicator()
 
     if visuals_user_info_ui.under_crosshair_indicator:GetValue() then
@@ -1524,6 +1739,7 @@ local function drawUnderCrosshairIndicator()
             end
         end
 
+        --mouse based position
         under_crosshair_indicator_x = under_crosshair_indicator_x + 
                                      (handler_variables.mouse_pos[1] - under_crosshair_indicator_x) / (constants.UNDER_CROSSHAIR_ANIMATION_SCALE * getAnimationScale())
 
@@ -1531,22 +1747,12 @@ local function drawUnderCrosshairIndicator()
                                      (handler_variables.mouse_pos[2] - under_crosshair_indicator_y) / (constants.UNDER_CROSSHAIR_ANIMATION_SCALE * getAnimationScale())
 
 
-        draw.SetFont(fonts.keybinds_font)
-        local blee_text_size = {draw.GetTextSize("blee")}
-        local ding_text_size = {draw.GetTextSize("ding")}
-
-        outlinedText(under_crosshair_indicator_x - blee_text_size[1] + scope_animation_value, 
-                    under_crosshair_indicator_y + constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER - math.floor(blee_text_size[2] / 2), 
-                    "blee", fonts.keybinds_font, {text_color[1], text_color[2], text_color[3], 255}, 
-                    fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
-
-        outlinedText(under_crosshair_indicator_x + scope_animation_value, 
-                    under_crosshair_indicator_y + constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER - math.floor(ding_text_size[2] / 2), 
-                    "ding", fonts.keybinds_font, {under_crosshair_indicator_color:GetValue()}, 
-                    fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
-
+        --iterating over all states
         for state = 1, #keybind_states_values, 1 do
+
+            --checking for active
             if keybind_states_animations[state] > 0 then
+
                 draw.SetFont(fonts.keybinds_font)
                 local under_crosshair_text_size = {draw.GetTextSize(keybind_states_text[state])}
 
@@ -1566,24 +1772,30 @@ constants.SIDE_DISTANCE_X = 5;
 constants.SIDE_DISTANCE_Y = 6
 local watermark_text = " ";
 
+--drawing watermark
 local function drawWatermark()
 
+    --creating text with all info
     watermark_text = ("BLEEDING   " .. handler_variables.user_name .. " | " ..  math.floor(handler_variables.fps_per_second) .. 
                       " fps | " .. handler_variables.server .. " | delay: " .. handler_variables.ping .. " ms | " .. handler_variables.tickrate .. " tick")
 
     if visuals_user_info_ui.watermark:GetValue() then
+
         draw.SetFont(fonts.keybinds_font)
         local watermark_text_size = {draw.GetTextSize(watermark_text)}
         local bleeding_text_size = {draw.GetTextSize("BLEEDING ")}
 
+        --left background
         draw.Color(background_color[1], background_color[2], background_color[3], 175)
         draw.FilledRect(screen_width - constants.WATERMARK_POSITION - watermark_text_size[1] + bleeding_text_size[1], constants.WATERMARK_POSITION - constants.SIDE_DISTANCE_Y, 
                         screen_width - constants.WATERMARK_POSITION + constants.SIDE_DISTANCE_X, constants.WATERMARK_POSITION + 15)
 
+        --right background
         draw.Color(header_color[1], header_color[2], header_color[3], 255)
         draw.FilledRect(screen_width - watermark_text_size[1] - constants.WATERMARK_POSITION - constants.SIDE_DISTANCE_X, constants.WATERMARK_POSITION - constants.SIDE_DISTANCE_Y, 
                         screen_width - watermark_text_size[1] - constants.WATERMARK_POSITION + bleeding_text_size[1] + 2, constants.WATERMARK_POSITION + 15)
 
+        --text
         outlinedText(screen_width - watermark_text_size[1] - constants.WATERMARK_POSITION, constants.WATERMARK_POSITION + 1, watermark_text, 
                     fonts.keybinds_font, {text_color[1], text_color[2], text_color[3], 255}, 
                     fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], 255})
@@ -1595,6 +1807,7 @@ constants.CUSTOM_SCOPE_ANIMATION_SPEED = 0.75;
 constants.CUSTOM_SCOPE_MINIMAL_SIZE = 20;
 local custom_scope_animation_value = constants.CUSTOM_SCOPE_MINIMAL_SIZE;
 
+--drawing custom scope
 local function drawCustomScope()
 
     --draw hud on disable
@@ -1650,38 +1863,49 @@ constants.DESYNC_SIDE_INDICATOR_SIZE_Y = 20;
 
 local function drawDesyncSideIndicator()
 
-    if desync_side_indicator:GetValue() then
-        if desync_inverted then
-            draw.Color(visuals_other_ui.desync_side_indicator_color_active:GetValue())
-            draw.FilledRect(screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
-                            screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER + constants.DESYNC_SIDE_INDICATOR_SIZE_X, 
-                            screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
+    --checking for enable
+    if not desync_side_indicator:GetValue() then
+        return 
+    end
+    
+    --checking for desync side
+    if desync_inverted then
 
-            draw.Color(visuals_other_ui.desync_side_indicator_color_inactive:GetValue())
-            draw.FilledRect(screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER - constants.DESYNC_SIDE_INDICATOR_SIZE_X, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
-                            screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER, 
-                            screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
-        else
-            draw.Color(visuals_other_ui.desync_side_indicator_color_inactive:GetValue())
-            draw.FilledRect(screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
-                            screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER + constants.DESYNC_SIDE_INDICATOR_SIZE_X, 
-                            screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
-
-            draw.Color(visuals_other_ui.desync_side_indicator_color_active:GetValue())
-            draw.FilledRect(screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER - constants.DESYNC_SIDE_INDICATOR_SIZE_X, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
-                            screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER, 
-                            screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
-        end
-
-        draw.Color(10, 10, 10, 255)
-        draw.OutlinedRect(screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER - 1, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
-                        screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER + constants.DESYNC_SIDE_INDICATOR_SIZE_X + 1, 
+        --right
+        draw.Color(visuals_other_ui.desync_side_indicator_color_active:GetValue())
+        draw.FilledRect(screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
+                        screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER + constants.DESYNC_SIDE_INDICATOR_SIZE_X, 
                         screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
 
-        draw.OutlinedRect(screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER - constants.DESYNC_SIDE_INDICATOR_SIZE_X - 1, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
-                        screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER + 1, 
+        --left
+        draw.Color(visuals_other_ui.desync_side_indicator_color_inactive:GetValue())
+        draw.FilledRect(screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER - constants.DESYNC_SIDE_INDICATOR_SIZE_X, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
+                        screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER, 
+                        screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
+    else
+
+        --right
+        draw.Color(visuals_other_ui.desync_side_indicator_color_inactive:GetValue())
+        draw.FilledRect(screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
+                        screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER + constants.DESYNC_SIDE_INDICATOR_SIZE_X, 
+                        screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
+
+        --left
+        draw.Color(visuals_other_ui.desync_side_indicator_color_active:GetValue())
+        draw.FilledRect(screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER - constants.DESYNC_SIDE_INDICATOR_SIZE_X, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
+                        screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER, 
                         screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
     end
+
+    --drawing outline rect for main rects
+    draw.Color(10, 10, 10, 255)
+    draw.OutlinedRect(screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER - 1, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
+                      screen_width / 2 + constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER + constants.DESYNC_SIDE_INDICATOR_SIZE_X + 1, 
+                      screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
+
+    draw.OutlinedRect(screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER - constants.DESYNC_SIDE_INDICATOR_SIZE_X - 1, screen_height / 2 + constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 + 1,
+                      screen_width / 2 - constants.DESYNC_SIDE_INDICATOR_DISTANCE_FROM_CENTER + 1, 
+                      screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
 end
 
 --cache system will help with values on unload
@@ -1803,21 +2027,25 @@ end
 local tables_reseted = false;
 
 local function resetVisualsArrays()
+    
+    --clearing convar, props arrays data, when local entity is nil
     if (not handler_variables.tone_map_controller or not handler_variables.local_entity) and not tables_reseted then
 
         --print("tables has been reseted")
-
         prop_array = {}
         convar_array = {}   
 
         tables_reseted = true
     end
 
+    --reseting table reseted, while has local entity
     if handler_variables.tone_map_controller and handler_variables.local_entity then
+
         tables_reseted = false
     end
 end
 
+--button, which updating caches of all convars
 visuals_other_ui.update_visuals_other_caches = gui.Button(visuals_other, "Update Caches", function()
     world_modifications_caches = getWorldModificationsCaches()
     convar_visuals_caches = getConvarVisualsCaches()
@@ -1828,17 +2056,23 @@ end)
 
 
 --@region MISC
+
+--getting closest target
 local function getClosestToCrosshair()
     local nearest_distance = math.huge                              --giant number
     local nearest_entity;
 
+    --iterating over all player
     for _, entity in pairs(entities.FindByClass("CCSPlayer")) do
+
         --check entity for valid
         if entity:GetTeamNumber() ~= handler_variables.local_entity:GetTeamNumber() and entity ~= handler_variables.local_entity and entity:IsPlayer() and entity:IsAlive() then
 
+            --getting their on screen distances
             local entity_on_screen = {client.WorldToScreen(entity:GetAbsOrigin())}
             local distance_to_entity = {vector.Distance(screen_width / 2, screen_height / 2, 0, entity_on_screen[1], entity_on_screen[2], 0)}
 
+            --finding closest
             if distance_to_entity[1] < nearest_distance then
                 nearest_distance = distance_to_entity[1]
                 nearest_entity = entity
@@ -1849,11 +2083,15 @@ local function getClosestToCrosshair()
     return nearest_entity
 end
 
+--autoscope, which basing on distance
 local MAX_NOSCOPE_DISTANCE = 300
 
 local function adaptiveAutoscope()
 
+    --if distance to closest target < 300, disabling asniper autostop
     if misc_useful_ui.adaptive_autoscope:GetValue() and getClosestToCrosshair() and handler_variables.current_weapon_group == "asniper" then
+
+        --target and local abs
         local local_abs = handler_variables.local_entity:GetAbsOrigin()
         local entity_abs = getClosestToCrosshair():GetAbsOrigin()
         
@@ -1864,7 +2102,7 @@ local function adaptiveAutoscope()
     end
 end
 
-
+--static arms cache
 local function setStaticArmsCaches()
     setConvar("cl_bob_lower_amt", 19)
     setConvar("cl_bobamt_vert", 0.16)
@@ -1874,6 +2112,7 @@ local function setStaticArmsCaches()
     setConvar("cl_viewmodel_shift_left_amt", 1.5)
 end
 
+--setting static arms
 local function staticArms()
     if misc_useful_ui.static_arms:GetValue() then
 
@@ -1889,6 +2128,7 @@ local function staticArms()
     end
 end
 
+--getting, what will bought like extra 
 local buy_bot_extra_commands = {"buy vesthelm", "buy vest", "buy taser", "buy defuser", "buy hegrenade", "buy molotov; buy incgrenade", "buy smokegrenade"}
 
 local function getBuyBotExtra()
@@ -1916,24 +2156,29 @@ end
 local buy_bot_primary = {"scar20; buy g3sg1", "awp", "ssg08"}
 local buy_bot_secondary = {"deagle; buy revolver", "elite", "tec9; buy fiveseven; buy cz75a", "p250"}
 
+--buying selected weapons on round prestart
 local function buyBot(event)
-    if event then
-        if misc_events_ui.buy_bot:GetValue() then
-            if event:GetName() == "round_prestart" then
 
-                --primary
-                if misc_events_ui.buy_bot_primary:GetValue() ~= 0 then
-                    client.Command("buy " .. buy_bot_primary[misc_events_ui.buy_bot_primary:GetValue()], true)
-                end
+    --checking for event valid and checkbox active
+    if not event or not misc_events_ui.buy_bot:GetValue() then
+        return 
+    end
 
-                --secondary
-                if misc_events_ui.buy_bot_secondary:GetValue() ~= 0 then
-                    client.Command("buy " .. buy_bot_secondary[misc_events_ui.buy_bot_secondary:GetValue()], true)
-                end
+    --buying all weapons on round prestart
+    if event:GetName() == "round_prestart" then
 
-                client.Command(getBuyBotExtra(), true)
-            end
+        --primary
+        if misc_events_ui.buy_bot_primary:GetValue() ~= 0 then
+            client.Command("buy " .. buy_bot_primary[misc_events_ui.buy_bot_primary:GetValue()], true)
         end
+
+        --secondary
+        if misc_events_ui.buy_bot_secondary:GetValue() ~= 0 then
+            client.Command("buy " .. buy_bot_secondary[misc_events_ui.buy_bot_secondary:GetValue()], true)
+        end
+
+        --extra
+        client.Command(getBuyBotExtra(), true)
     end
 end
 --@endregion
@@ -1984,6 +2229,7 @@ callbacks.Register("Draw", function()
             drawWeaponInfoText()
         end
 
+        drawUnderCrosshairIndicatorMainText()
         drawUnderCrosshairIndicator()
 
         drawWatermark()
