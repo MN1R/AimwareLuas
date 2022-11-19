@@ -1,3 +1,7 @@
+
+--credits to Cheesot
+--semi-fixed by Verieth(it's gui gui and gui) :(
+
 local ref = gui.Tab(gui.Reference("Visuals"), "ref", "Advanced Chams")
 local menuref = gui.Reference("MENU")
 
