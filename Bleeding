@@ -122,7 +122,6 @@ local anti_aim_rage_ui =
     double_fire = gui.Checkbox(anti_aim_rage, "double_fire", "Double Fire", false),
     hide_shots = gui.Checkbox(anti_aim_rage, "hide_shots", "Hide Shots", false)
 };
-
 --_____________________________________--
 
 
@@ -282,6 +281,18 @@ local buy_bot_extra_ui =
 --_____________________________________--
 ----------------------------------------------
 
+-------------------LAGSYNC--------------------
+
+--__________custom lagsync_____________--
+local custom_lagsync_tab = gui.Tab(gui.Reference("Ragebot"), "custom_lagsync_tab", "Anti-Aim Lagsync Tab");
+
+local stages_of_lagsync = gui.Groupbox(custom_lagsync_tab, "Stages of Lagsync", 5, 10, 325, 50);
+
+local lagsync_enable = gui.Checkbox(stages_of_lagsync, "lagsync_enable", "Enable Lagsync", false)
+local elements_box = gui.Multibox(stages_of_lagsync, "Select Stage To Edit");
+--_____________________________________--
+
+----------------------------------------------
 --@endregion
 
 
@@ -434,21 +445,28 @@ local function getAntiAimCondition()
 
     --get anti-aim condition
     if (velocity <= 10) and not ducking and not in_air and anti_aim_elements[2].override_condition:GetValue() then
+
         return 2 --standing
-    elseif (ducking or (gui.GetValue("rbot.antiaim.extra.fakecrouchkey") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.antiaim.extra.fakecrouchkey")))) 
+
+    elseif (ducking or functions_states.fake_duck_active) 
            and not in_air and anti_aim_elements[3].override_condition:GetValue() then
         
         return 3 --ducking
-    elseif (velocity > 10) and (gui.GetValue("rbot.accuracy.movement.slowkey") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.accuracy.movement.slowkey"))) 
+
+    elseif (velocity > 10) and functions_states.slow_walk_active
            and not ducking and not in_air and anti_aim_elements[4].override_condition:GetValue() then
         
         return 4 --slow walking
-    elseif (velocity > 10) and not (gui.GetValue("rbot.accuracy.movement.slowkey") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.accuracy.movement.slowkey"))) 
+
+    elseif (velocity > 10) and not functions_states.slow_walk_active
            and not ducking and not in_air and anti_aim_elements[5].override_condition:GetValue() then
         
         return 5 --moving
+
     elseif in_air and anti_aim_elements[6].override_condition:GetValue() then
+
         return 6 --air
+
     else
         return 1 --general
     end
@@ -806,11 +824,11 @@ local function calculateManualYaw()
 
     --if manual is not active
     if anti_aim_other_ui.legit_anti_aim:GetValue() or not isManualActive()[1] then
-        manual_yaw = 0
+        yaw_variables.manual_yaw = 0
     
     --if its active
     else
-        manual_yaw = constants.MANUAL_YAW_VALUES[isManualActive()[2]]
+        yaw_variables.manual_yaw = constants.MANUAL_YAW_VALUES[isManualActive()[2]]
     end
 end 
 
@@ -823,21 +841,34 @@ end
 
 --controling pitch, at targets, at edjes, based on legit aa and manuals
 local function controleAntiAimStates()
+    
+    local pitch_state;
+    local at_targets_state;
+    local at_edjes_state;
 
     if anti_aim_other_ui.legit_anti_aim:GetValue() then
-        gui.SetValue("rbot.antiaim.advanced.pitch", 0)
-        gui.SetValue("rbot.antiaim.condition.autodir.targets", false)
-        gui.SetValue("rbot.antiaim.condition.autodir.edges", false)
+
+        pitch_state = 0
+        at_targets_state = false
+        at_edjes_state = false
         gui.SetValue("rbot.antiaim.condition.use", false)
+
     elseif not anti_aim_other_ui.legit_anti_aim:GetValue() and isManualActive()[1] then
-        gui.SetValue("rbot.antiaim.advanced.pitch", 1)
-        gui.SetValue("rbot.antiaim.condition.autodir.targets", false)
-        gui.SetValue("rbot.antiaim.condition.autodir.edges", false)
+
+        pitch_state = 1
+        at_targets_state = false
+        at_edjes_state = false
+
     elseif not anti_aim_other_ui.legit_anti_aim:GetValue() and not isManualActive()[1] then
-        gui.SetValue("rbot.antiaim.advanced.pitch", 1)
-        gui.SetValue("rbot.antiaim.condition.autodir.targets", anti_aim_other_ui.at_targets:GetValue())
-        gui.SetValue("rbot.antiaim.condition.autodir.edges",  anti_aim_other_ui.at_edges:GetValue())
+
+        pitch_state = 1
+        at_targets_state = anti_aim_other_ui.at_targets:GetValue()
+        at_edjes_state = anti_aim_other_ui.at_edges:GetValue()    
     end
+
+    gui.SetValue("rbot.antiaim.advanced.pitch", pitch_state)
+    gui.SetValue("rbot.antiaim.condition.autodir.targets", at_targets_state)
+    gui.SetValue("rbot.antiaim.condition.autodir.edges", at_edjes_state)
 end
 
 --calling all manuals functions
@@ -908,7 +939,7 @@ local function setYaw()
     --getting current yaw, based on advanced preset is enabled or not
     current_jitter_angle = handler_variables.advanced_mode_enabled and jitter_yaw or jitter_angle_simple
 
-    gui.SetValue("rbot.antiaim.base", tostring(clampYaw(180 + current_jitter_angle + manual_yaw + yaw_variables.legit_yaw + main_yaw)) .. getDesyncType())
+    gui.SetValue("rbot.antiaim.base", tostring(clampYaw(180 + current_jitter_angle + yaw_variables.manual_yaw + yaw_variables.legit_yaw + main_yaw)) .. getDesyncType())
 end
 --@endregion
 
@@ -1012,16 +1043,19 @@ end
 local function setExploits()
 
     if handler_variables.current_weapon_group ~= "zeus" then
+
+        local exploit_state;
+
         if anti_aim_rage_ui.double_fire:GetValue() then
-            gui.SetValue("rbot.accuracy.attack." .. handler_variables.current_weapon_group .. ".fire", "Defensive Warp Fire")
-            gui.SetValue("rbot.accuracy.attack.shared.fire", "Defensive Warp Fire")
+            exploit_state = "Defensive Warp Fire"
         elseif anti_aim_rage_ui.hide_shots:GetValue() and not anti_aim_rage_ui.double_fire:GetValue() then
-            gui.SetValue("rbot.accuracy.attack." .. handler_variables.current_weapon_group .. ".fire", "Shift Fire")
-            gui.SetValue("rbot.accuracy.attack.shared.fire", "Shift Fire")
+            exploit_state = "Shift Fire"
         else
-            gui.SetValue("rbot.accuracy.attack." .. handler_variables.current_weapon_group .. ".fire", "Off")
-            gui.SetValue("rbot.accuracy.attack.shared.fire", "Off")
+            exploit_state = "Off" 
         end
+
+        gui.SetValue("rbot.accuracy.attack." .. handler_variables.current_weapon_group .. ".fire", exploit_state)
+        gui.SetValue("rbot.accuracy.attack.shared.fire", exploit_state)
     end
 end
 --@endregion
@@ -1636,7 +1670,7 @@ local function drawWeaponInfoText()
 end
 
 
-constants.CHAR_ANIMATION_SPEED = 0.2
+constants.CHAR_ANIMATION_SPEED = 0.15
 constants.BLEEDING_CHARS_SIZE = {}
 constants.BLEEDING_CHARS = {"b", "l", "e", "e", "d", "i", "n", "g"};
 constants.MAX_CHARS = 4
@@ -1663,7 +1697,7 @@ local function drawUnderCrosshairIndicatorMainText()
         end
 
         --setting colored active side char with animation
-        char_animation_value = char_animation_value - constants.CHAR_ANIMATION_SPEED
+        char_animation_value = char_animation_value - constants.CHAR_ANIMATION_SPEED * getAnimationScale()
         if char_animation_value < -constants.MAX_CHARS then
             char_animation_value = -constants.MAX_CHARS
         end
@@ -1676,7 +1710,7 @@ local function drawUnderCrosshairIndicatorMainText()
         end
 
         --setting colored active side char with animation
-        char_animation_value = char_animation_value + constants.CHAR_ANIMATION_SPEED
+        char_animation_value = char_animation_value + constants.CHAR_ANIMATION_SPEED * getAnimationScale()
         if char_animation_value > constants.MAX_CHARS then
             char_animation_value = constants.MAX_CHARS
         end
@@ -1713,46 +1747,43 @@ end
 --drawing under crosshair indicators
 local function drawUnderCrosshairIndicator()
 
-    if visuals_user_info_ui.under_crosshair_indicator:GetValue() then
+    --in scope animation
+    if handler_variables.is_scoped then
+        scope_animation_value = scope_animation_value + constants.SCOPE_ANIMATION_SPEED * getAnimationScale()
 
-        --in scope animation
-        if handler_variables.is_scoped then
-            scope_animation_value = scope_animation_value + constants.SCOPE_ANIMATION_SPEED * getAnimationScale()
-
-            if scope_animation_value > constants.SCOPE_ANIMATION_LENGTH then
-                scope_animation_value = constants.SCOPE_ANIMATION_LENGTH
-            end
-        else
-            scope_animation_value = scope_animation_value - constants.SCOPE_ANIMATION_SPEED * getAnimationScale()
-
-            if scope_animation_value < 0 then
-                scope_animation_value = 0
-            end
+        if scope_animation_value > constants.SCOPE_ANIMATION_LENGTH then
+            scope_animation_value = constants.SCOPE_ANIMATION_LENGTH
         end
+    else
+        scope_animation_value = scope_animation_value - constants.SCOPE_ANIMATION_SPEED * getAnimationScale()
 
-        --mouse based position
-        under_crosshair_indicator_x = under_crosshair_indicator_x + 
-                                     (handler_variables.mouse_pos[1] - under_crosshair_indicator_x) / (constants.UNDER_CROSSHAIR_ANIMATION_SCALE * getAnimationScale())
+        if scope_animation_value < 0 then
+            scope_animation_value = 0
+        end
+    end
 
-        under_crosshair_indicator_y = under_crosshair_indicator_y + 
-                                     (handler_variables.mouse_pos[2] - under_crosshair_indicator_y) / (constants.UNDER_CROSSHAIR_ANIMATION_SCALE * getAnimationScale())
+    --mouse based position
+    under_crosshair_indicator_x = under_crosshair_indicator_x + 
+                                  (handler_variables.mouse_pos[1] - under_crosshair_indicator_x) / (constants.UNDER_CROSSHAIR_ANIMATION_SCALE * getAnimationScale())
+
+    under_crosshair_indicator_y = under_crosshair_indicator_y + 
+                                (handler_variables.mouse_pos[2] - under_crosshair_indicator_y) / (constants.UNDER_CROSSHAIR_ANIMATION_SCALE * getAnimationScale())
 
 
-        --iterating over all states
-        for state = 1, #keybind_states_values, 1 do
+    --iterating over all states
+    for state = 1, #keybind_states_values, 1 do
 
-            --checking for active
-            if keybind_states_animations[state] > 0 then
+        --checking for active
+        if keybind_states_animations[state] > 0 then
 
-                draw.SetFont(fonts.keybinds_font)
-                local under_crosshair_text_size = {draw.GetTextSize(keybind_states_text[state])}
+            draw.SetFont(fonts.keybinds_font)
+            local under_crosshair_text_size = {draw.GetTextSize(keybind_states_text[state])}
 
-                outlinedText(under_crosshair_indicator_x - under_crosshair_text_size[1] / 2 + scope_animation_value, 
-                            under_crosshair_indicator_y + constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER + sumFromTo(keybind_states_animations, 1, state)
-                            - math.floor(under_crosshair_text_size[2] / 2), keybind_states_text[state],
-                            fonts.keybinds_font, {text_color[1], text_color[2], text_color[3], keybind_states_animations[state] * 17}, 
-                            fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], keybind_states_animations[state] * 17})
-            end
+            outlinedText(under_crosshair_indicator_x - under_crosshair_text_size[1] / 2 + scope_animation_value, 
+                        under_crosshair_indicator_y + constants.UNDER_CROSSHAIR_DISTANCE_FROM_CENTER + sumFromTo(keybind_states_animations, 1, state)
+                        - math.floor(under_crosshair_text_size[2] / 2), keybind_states_text[state],
+                        fonts.keybinds_font, {text_color[1], text_color[2], text_color[3], keybind_states_animations[state] * 17}, 
+                        fonts.keybinds_font_outlined, {outline_color[1], outline_color[2], outline_color[3], keybind_states_animations[state] * 17})
         end
     end
 end
@@ -2175,6 +2206,207 @@ end
 --@endregion
 
 
+--@region LAGSYNC
+
+--array, that collecting multibox elements
+local elements_array = {};
+
+--array, that collecting settings for stage
+local elements_setting_array = {}
+
+--create elements of keybinds
+local function createElement()
+
+	--basic multibox
+	elements_array[#elements_array + 1] = gui.Checkbox(elements_box, tostring(#elements_array + 1) .. "_element", tostring(#elements_array + 1) .. " Element", false)
+
+	--all varnames and names
+	local interface_name = tostring(#elements_setting_array + 1)
+
+	if not elements_setting_array[#elements_setting_array + 1] then
+		elements_setting_array[#elements_setting_array + 1] = {}
+	end
+	local element = elements_setting_array[#elements_setting_array]
+
+	--create settings
+	element.desync_angle = gui.Slider(stages_of_lagsync, "desync_angle_" .. interface_name, "Desync Angle", 0, -58, 58, 1)
+	element.yaw_angle = gui.Slider(stages_of_lagsync, "yaw_angle_" .. interface_name, "Yaw Angle", 0, -180, 180, 1)
+	element.time_to_switch = gui.Slider(stages_of_lagsync, "time_to_switch_" .. interface_name, "Time to Switch", 2, 2, 64, 1)
+end
+
+--remove last element
+local function removeElement()
+
+    --checking, that elements number is not 0
+    if not elements_array[1] or not elements_setting_array[1] then 
+        return 
+    end
+
+	--removing main element gui
+	elements_array[#elements_array]:Remove()
+
+	--removing all settings gui
+	elements_setting_array[#elements_setting_array].desync_angle:Remove()
+	elements_setting_array[#elements_setting_array].yaw_angle:Remove()
+	elements_setting_array[#elements_setting_array].time_to_switch:Remove()
+
+	--clearing tables
+	table.remove(elements_array, #elements_array)
+	table.remove(elements_setting_array, #elements_setting_array)
+end
+
+--get active element
+local function getCurrentElement()
+
+	--iterating over all elements to get active
+	for element = 1, #elements_array, 1 do
+
+		if elements_array[element]:GetValue() then
+			return element
+		end
+	end
+end
+
+--invisible of elements etc
+local function changeElementsUi()
+
+	--iterating over all elements to make inactive elements invisible
+	for element = 1, #elements_array, 1 do
+
+		--disabling not active elements
+		if getCurrentElement() and getCurrentElement() ~= element then
+
+			elements_array[element]:SetValue(false)
+		end
+
+		--iterating over all element setting to make them invisible
+		for element = 1, #elements_setting_array, 1 do 
+			elements_setting_array[element].desync_angle:SetInvisible(not elements_array[element]:GetValue())
+			elements_setting_array[element].yaw_angle:SetInvisible(not elements_array[element]:GetValue())
+			elements_setting_array[element].time_to_switch:SetInvisible(not elements_array[element]:GetValue())
+		end
+	end
+end
+
+--create first start elements to save in cfg
+local function fileExists(file_name)
+
+    local file_exist = false
+
+	--enumerating all files in aimware settings folder to find our
+	file.Enumerate(function(file)
+		if file == file_name then
+			file_exist = true
+		end
+	end)
+
+	return file_exist
+end
+
+--getting filename of cache
+local function getFileName()
+
+	local script_name = GetScriptName()
+
+	return string.sub(script_name, 1, string.find(script_name, ".lua") - 1) .. "_last_elements_number.txt"
+end
+
+--getting how many elements should we create
+local function getLastElementsNumber()
+	local elements_number = 5
+
+	--getting filename of script
+	local file_name = getFileName()
+
+	--if we have file then checking his data to create elements
+	if fileExists(file_name) then
+
+		local file_open = file.Open(file_name, 'r')
+		local file_data = file_open:Read()
+
+		file_open:Close()
+
+		elements_number = file_data
+	else
+
+		--5 it is default number of stages
+		file.Write(file_name, tostring(elements_number))
+	end
+
+	return elements_number
+end
+
+--creating first elements on load
+local is_first_load = true
+
+local function makeFirstElements()
+
+	if is_first_load then
+
+		--iterating over 1 to data of created element to return old script settings
+		for created_elements = 1, getLastElementsNumber(), 1 do
+			createElement()
+		end
+
+		is_first_load = false
+	end
+end
+
+--create element by button
+local create_element_button = gui.Button(stages_of_lagsync, "Create Element", function()
+	createElement()
+end)
+
+--remove element by button
+local remove_element_button = gui.Button(stages_of_lagsync, "Remove Element", function()
+	removeElement()
+end)
+
+local text_transfer_elements = gui.Text(stages_of_lagsync, '\n')
+
+
+local lagsync_static_realtime = globals.RealTime();
+
+local general_lagsync_stage = 1;
+local current_lagsync_stage = 1;
+
+--counting current lagsync stage
+local function lagsyncStageCounter()
+
+    --checking, that elements number is not 0
+    if not elements_array[1] or not elements_setting_array[1] then
+        return 
+    end
+
+	--fixing if we are removing elements
+	if current_lagsync_stage > #elements_setting_array then
+		current_lagsync_stage = #elements_setting_array
+	end
+
+	--general stage its all stages which been counted
+	if handler_variables.real_time - lagsync_static_realtime >= elements_setting_array[current_lagsync_stage].time_to_switch:GetValue() * handler_variables.TICK_TIME then
+
+		general_lagsync_stage = general_lagsync_stage + 1
+
+		lagsync_static_realtime = handler_variables.real_time
+	end
+
+	--getting current stage by allstages % numberofstages
+	current_lagsync_stage = (general_lagsync_stage % #elements_setting_array) + 1
+end
+
+--setting yaw
+local function lagsyncSetYaw()
+
+	gui.SetValue("rbot.antiaim.base", clampYaw(180 + yaw_variables.manual_yaw + yaw_variables.legit_yaw + elements_setting_array[current_lagsync_stage].yaw_angle:GetValue()))
+end
+
+--setting desync
+local function lagsyncSetDesync()
+
+	gui.SetValue("rbot.antiaim.base.rotation", elements_setting_array[current_lagsync_stage].desync_angle:GetValue())
+end
+
 --@region CALLBACKS
 callbacks.Register("Draw", function()  
     --gui
@@ -2191,15 +2423,28 @@ callbacks.Register("Draw", function()
     clearHitArray()
     resetVisualsArrays()
 
+    --visuals
+    controleVisualsPostion()
+
+    --making 1 more preparation for lagsync gui
+    if lagsync_enable:GetValue() then
+        if is_first_load then
+            preparation_finished = false
+            load_time = globals.RealTime()
+        end
+        
+        changeElementsUi()
+        makeFirstElements()
+    end
+
     if preparation_finished and handler_variables.local_entity then
-        --visuals
-        controleVisualsPostion()
 
         --general
         invertDesync()
 
         --yaw modifiers
         callManualsFunctions()
+        lagsyncStageCounter()
 
         --visual events
         worldHitmarker()
@@ -2220,8 +2465,10 @@ callbacks.Register("Draw", function()
             drawWeaponInfoText()
         end
 
-        drawUnderCrosshairIndicatorMainText()
-        drawUnderCrosshairIndicator()
+        if visuals_user_info_ui.under_crosshair_indicator:GetValue() then
+            drawUnderCrosshairIndicatorMainText()
+            drawUnderCrosshairIndicator()
+        end
 
         drawWatermark()
 
@@ -2236,18 +2483,30 @@ callbacks.Register("PostMove", function()
     getKeybindsStates()
 
     if preparation_finished and handler_variables.local_entity then
-        --yaw modifiers
-        callJitterFunctions()
-        calculateMainYaw()
-        simpleJitter()
 
-        setYaw()
+        --changing system of anti-aims
+        if not lagsync_enable:GetValue() then
+            --yaw modifiers
+            callJitterFunctions()
+            calculateMainYaw()
+            simpleJitter()
 
-        --desync modifiers
-        callDesyncFunctions()
-        simpleDesync()
+            setYaw()
 
-        setDesync()
+            --desync modifiers
+            callDesyncFunctions()
+            simpleDesync()
+
+            setDesync()
+
+        else
+            
+            --checking, that we has elements with given number
+            if elements_array[current_lagsync_stage] and elements_setting_array[current_lagsync_stage] then
+                lagsyncSetYaw()
+                lagsyncSetDesync()
+            end
+        end
 
         --rage
         setExploits()
@@ -2272,6 +2531,7 @@ callbacks.Register("FireGameEvent", function(event)
 end)
 
 callbacks.Register("Unload", function()
+    --returning caches of convars
     setConvar("viewmodel_offset_x", convar_visuals_caches[1])
     setConvar("viewmodel_offset_y", convar_visuals_caches[2])
     setConvar("viewmodel_offset_z", convar_visuals_caches[3])
@@ -2280,6 +2540,12 @@ callbacks.Register("Unload", function()
     setWorldModificationsCaches()
 
     setStaticArmsCaches()
+
+    --updating our file on unload to get latest number of elements
+	local file_name = getFileName()
+	file.Delete(file_name)
+
+	file.Write(file_name, #elements_array)
 end)
 --@endregion
 
