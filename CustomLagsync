@@ -1,0 +1,229 @@
+--gui
+local lua_tab = gui.Tab(gui.Reference("Ragebot"), "lua_tab", "Custom Lagsync");
+
+local stages_of_lagsync = gui.Groupbox(lua_tab, "Stages of Lagsync", 5, 10, 325, 50);
+local elements_box = gui.Multibox(stages_of_lagsync, "Select Stage To Edit");
+
+--array, that collecting multibox elements
+local elements_array = {};
+
+--array, that collecting settings for stage
+local elements_setting_array = {}
+
+--create elements of keybinds
+local function createElement()
+
+	--basic multibox
+	elements_array[#elements_array + 1] = gui.Checkbox(elements_box, tostring(#elements_array + 1) .. "_element", tostring(#elements_array + 1) .. " Element", false)
+
+	--all varnames and names
+	local interface_name = tostring(#elements_setting_array + 1)
+
+	if not elements_setting_array[#elements_setting_array + 1] then
+		elements_setting_array[#elements_setting_array + 1] = {}
+	end
+	local element = elements_setting_array[#elements_setting_array]
+
+	--create settings
+	element.desync_angle = gui.Slider(stages_of_lagsync, "desync_angle_" .. interface_name, "Desync Angle", 0, -58, 58, 1)
+	element.yaw_angle = gui.Slider(stages_of_lagsync, "yaw_angle_" .. interface_name, "Yaw Angle", 0, -180, 180, 1)
+	element.time_to_switch = gui.Slider(stages_of_lagsync, "time_to_switch_" .. interface_name, "Time to Switch", 2, 2, 64, 1)
+end
+
+--remove last element
+local function removeElement()
+
+	--removing main element gui
+	elements_array[#elements_array]:Remove()
+
+	--removing all settings gui
+	elements_setting_array[#elements_setting_array].desync_angle:Remove()
+	elements_setting_array[#elements_setting_array].yaw_angle:Remove()
+	elements_setting_array[#elements_setting_array].time_to_switch:Remove()
+
+	--clearing tables
+	table.remove(elements_array, #elements_array)
+	table.remove(elements_setting_array, #elements_setting_array)
+end
+
+--get active element
+local function getCurrentElement()
+
+	--iterating over all elements to get active
+	for element = 1, #elements_array, 1 do
+
+		if elements_array[element]:GetValue() then
+			return element
+		end
+	end
+end
+
+--invisible of elements etc
+local function changeElementsUi()
+
+	--iterating over all elements to make inactive elements invisible
+	for element = 1, #elements_array, 1 do
+
+		--disabling not active elements
+		if getCurrentElement() and getCurrentElement() ~= element then
+
+			elements_array[element]:SetValue(false)
+		end
+
+		--iterating over all element setting to make them invisible
+		for element = 1, #elements_setting_array, 1 do 
+			elements_setting_array[element].desync_angle:SetInvisible(not elements_array[element]:GetValue())
+			elements_setting_array[element].yaw_angle:SetInvisible(not elements_array[element]:GetValue())
+			elements_setting_array[element].time_to_switch:SetInvisible(not elements_array[element]:GetValue())
+		end
+	end
+end
+
+--create first start elements to save in cfg
+local function fileExists(file_name)
+
+    local file_exist = false
+
+	--enumerating all files in aimware settings folder to find our
+	file.Enumerate(function(file)
+		if file == file_name then
+			file_exist = true
+		end
+	end)
+
+	return file_exist
+end
+
+--getting filename of our cache
+local function getFileName()
+
+	local script_name = GetScriptName()
+
+	return string.sub(script_name, 1, string.find(script_name, ".lua") - 1) .. "_last_elements_number.txt"
+end
+
+--getting how many elements should we create
+local function getLastElementsNumber()
+	local elements_number = 5
+
+	--getting filename of script
+	local file_name = getFileName()
+
+	--if we have file then checking his data to create elements
+	if fileExists(file_name) then
+		local file_open = file.Open(file_name, 'r')
+		local file_data = file_open:Read()
+
+		file_open:Close()
+
+		elements_number = file_data
+	else
+
+		--5 it is default number of stages
+		file.Write(file_name, "5")
+	end
+
+	return elements_number
+end
+
+callbacks.Register("Unload", function()
+
+	--updating our file on unload to get latest number of elements
+	local file_name = getFileName()
+
+	file.Delete(file_name)
+	file.Write(file_name, #elements_array)
+end)
+
+
+--creating first elements on load
+local is_first_load = true
+
+local function makeFirstElements()
+
+	if is_first_load then
+
+		--iterating over 1 to data of created element to return old script settings
+		for created_elements = 1, getLastElementsNumber(), 1 do
+			createElement()
+		end
+
+		is_first_load = false
+	end
+end
+
+
+--create element by button
+local create_element_button = gui.Button(stages_of_lagsync, "Create Element", function()
+	createElement()
+end)
+
+--remove element by button
+local remove_element_button = gui.Button(stages_of_lagsync, "Remove Element", function()
+	removeElement()
+end)
+
+local text_transfer_elements = gui.Text(stages_of_lagsync, '\n')
+
+
+
+--anti-aims
+local function clampYaw(yaw)
+
+    --clamping our yaw
+    while yaw > 180 do yaw = yaw - 360 end
+    while yaw < -180 do yaw = yaw + 360 end
+
+    return yaw
+end
+
+
+local static_realtime = globals.RealTime();
+local TICK_TIME = 1 / 64;
+
+local general_stage = 1;
+local current_stage = 1;
+
+--counting current lagsync stage
+local function stageCounter()
+
+	--fixing if we are removing elements
+	if current_stage > #elements_setting_array then
+		current_stage = #elements_setting_array
+	end
+
+	--general stage its all stages which been counted
+	if globals.RealTime() - static_realtime >= elements_setting_array[current_stage].time_to_switch:GetValue() * TICK_TIME then
+
+		general_stage = general_stage + 1
+
+		static_realtime = globals.RealTime()
+	end
+
+	--getting current stage by allstages % numberofstages
+	current_stage = (general_stage % #elements_setting_array) + 1
+end
+
+--setting yaw
+local function setYaw()
+
+	gui.SetValue("rbot.antiaim.base", clampYaw(180 + elements_setting_array[current_stage].yaw_angle:GetValue()))
+end
+
+--setting desync
+local function setDesync()
+
+	gui.SetValue("rbot.antiaim.base.rotation", elements_setting_array[current_stage].desync_angle:GetValue())
+end
+
+--callbacks
+callbacks.Register('Draw', function()
+	changeElementsUi()
+	makeFirstElements()
+	stageCounter()
+end)
+
+callbacks.Register("PostMove", function()
+	setYaw()
+	setDesync()
+end)
