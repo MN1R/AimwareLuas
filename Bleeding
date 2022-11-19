@@ -381,22 +381,18 @@ local handler_variables =
     jitter_switch_time = 0,
     desync_switch_time = 0,
     fps = 0,
-    ping = 0,
-    server_ip = 0,
-    tickrate_updated = false,
+    tickrate_ip_updated = false,
     tickrate = client.GetConVar("sv_maxcmdrate"),
     server = "",
     user_name = cheat.GetUserName(),
-    local_entity,
-    is_scoped = false,
     fps_per_second = 400;
-    tone_map_controller;
     current_weapon_group = "shared";
 }
 
 --keybinds states handlers
 local functions_states = {}
 local constants = {}
+local props = {}
 
 --getting current weapon group to use it
 local function getWeaponGroup()
@@ -429,22 +425,17 @@ end
 local function getAntiAimCondition()
     
     --if our entity is not valid then returning general
-    if not handler_variables.local_entity or not handler_variables.local_entity:IsAlive() then
+    if not handler_variables.local_entity or not handler_variables.local_entity:IsAlive() or not props.m_flags then
         return 1 --general
     end
 
-    --watching for m_flags
-    local m_flags = handler_variables.local_entity:GetProp("m_fFlags")
-
-    --m_flags positions are basing on bitwise operator
-    local in_air = ((bit.band(m_flags, handler_variables.FL_ONGROUND)) == 0)
-    local ducking = ((bit.band(m_flags, handler_variables.FL_DUCKING)) == 2)
+    --props.m_flags positions are basing on bitwise operator
+    local in_air = ((bit.band(props.m_flags, handler_variables.FL_ONGROUND)) == 0)
+    local ducking = ((bit.band(props.m_flags, handler_variables.FL_DUCKING)) == 2)
     ----------------------
 
-    local velocity = handler_variables.local_entity:GetPropVector("localdata", "m_vecVelocity[0]"):Length()
-
     --get anti-aim condition
-    if (velocity <= 10) and not ducking and not in_air and anti_aim_elements[2].override_condition:GetValue() then
+    if (props.velocity <= 10) and not ducking and not in_air and anti_aim_elements[2].override_condition:GetValue() then
 
         return 2 --standing
 
@@ -453,12 +444,12 @@ local function getAntiAimCondition()
         
         return 3 --ducking
 
-    elseif (velocity > 10) and functions_states.slow_walk_active
+    elseif (props.velocity > 10) and functions_states.slow_walk_active
            and not ducking and not in_air and anti_aim_elements[4].override_condition:GetValue() then
         
         return 4 --slow walking
 
-    elseif (velocity > 10) and not functions_states.slow_walk_active
+    elseif (props.velocity > 10) and not functions_states.slow_walk_active
            and not ducking and not in_air and anti_aim_elements[5].override_condition:GetValue() then
         
         return 5 --moving
@@ -485,9 +476,10 @@ local function handlers()
     handler_variables.cur_time = globals.CurTime()
 
     --anti_aims
+    handler_variables.anti_aim_condition = getAntiAimCondition()
     handler_variables.advanced_mode_enabled = advanced_mode:GetValue()
 
-    handler_variables.jitter_switch_time = functions_states.double_tap_active and anti_aim_elements[getAntiAimCondition()].yaw_modifier_speed:GetValue() 
+    handler_variables.jitter_switch_time = functions_states.double_tap_active and anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier_speed:GetValue() 
                                             or handler_variables.fake_lag_factor;
 
     handler_variables.desync_switch_time = functions_states.double_tap_active and 2 or handler_variables.fake_lag_factor
@@ -500,15 +492,23 @@ local function handlers()
     end
 
     handler_variables.mouse_pos = {input.GetMousePos()}
-    handler_variables.tone_map_controller = entities.FindByClass('CEnvTonemapController')[1]
 
     --local info
     if handler_variables.local_entity then
-        handler_variables.is_scoped = handler_variables.local_entity:GetPropBool("m_bIsScoped")
 
-        handler_variables.ping = entities:GetPlayerResources():GetPropInt("m_iPing", client.GetLocalPlayerIndex())
-        
-        handler_variables.server_ip = engine.GetServerIP()
+        props.m_flags = handler_variables.local_entity:GetProp("m_fFlags")
+        props.velocity = handler_variables.local_entity:GetPropVector("localdata", "m_vecVelocity[0]"):Length()
+        props.ping = entities:GetPlayerResources():GetPropInt("m_iPing", client.GetLocalPlayerIndex())
+        props.is_scoped = handler_variables.local_entity:GetPropBool("m_bIsScoped")
+        props.tone_map_controller = entities.FindByClass('CEnvTonemapController')[1]
+
+        --updating tickrate after reconnecting 
+        if not handler_variables.tickrate_ip_updated then
+            handler_variables.server_ip = engine.GetServerIP()
+            handler_variables.tickrate = client.GetConVar("sv_maxcmdrate")
+
+            handler_variables.tickrate_ip_updated = true
+        end
 
         --getting server type by his ip
         if handler_variables.server_ip == "loopback" then
@@ -519,18 +519,13 @@ local function handlers()
             handler_variables.server = handler_variables.server_ip
         end
 
-        --updating tickrate after reconnecting 
-        if not handler_variables.tickrate_updated then
-            handler_variables.tickrate = client.GetConVar("sv_maxcmdrate")
-            handler_variables.tickrate_updated = true
-        end
 
         --calculating fake lag factor to correct work of jitters speed
         handler_variables.fake_lag_factor = 2 + math.floor(1 + (globals.CurTime() - handler_variables.local_entity:GetPropFloat("m_flSimulationTime")) / globals.TickInterval())
     else
 
         --showing, that we should change tickrate after reconnect
-        handler_variables.tickrate_updated = false
+        handler_variables.tickrate_ip_updated = false
     end
 end
 
@@ -647,17 +642,17 @@ local random_yaw = 0;
 --all jitter types, swapper works like side switcher
 local function staticJitter()
 
-    if anti_aim_elements[getAntiAimCondition()].yaw_modifier:GetValue() == 0 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier:GetValue() == 0 then
         jitter_yaw = 0
     end
 end
 
 local function centerJitter()
 
-    if anti_aim_elements[getAntiAimCondition()].yaw_modifier:GetValue() == 1 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier:GetValue() == 1 then
         if handler_variables.real_time - static_yaw_time >= (handler_variables.jitter_switch_time * handler_variables.TICK_TIME) then
 
-            jitter_yaw = (anti_aim_elements[getAntiAimCondition()].yaw_modifier_range:GetValue() / 2) * jitter_side_swapper
+            jitter_yaw = (anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier_range:GetValue() / 2) * jitter_side_swapper
 
             jitter_side_swapper = -jitter_side_swapper   
             static_yaw_time = handler_variables.real_time
@@ -667,10 +662,10 @@ end
 
 local function offsetJitter()
 
-    if anti_aim_elements[getAntiAimCondition()].yaw_modifier:GetValue() == 2 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier:GetValue() == 2 then
         if handler_variables.real_time - static_yaw_time >= (handler_variables.jitter_switch_time * handler_variables.TICK_TIME) then
 
-            jitter_yaw = jitter_side_swapper > 0 and anti_aim_elements[getAntiAimCondition()].yaw_modifier_range:GetValue() or 0
+            jitter_yaw = jitter_side_swapper > 0 and anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier_range:GetValue() or 0
 
             jitter_side_swapper = -jitter_side_swapper   
             static_yaw_time = handler_variables.real_time
@@ -680,10 +675,10 @@ end
 
 local function randomJitter()
 
-    if anti_aim_elements[getAntiAimCondition()].yaw_modifier:GetValue() == 3 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier:GetValue() == 3 then
         if handler_variables.real_time - static_yaw_time >= (handler_variables.jitter_switch_time * handler_variables.TICK_TIME) then
 
-            jitter_yaw = (math.random(0, anti_aim_elements[getAntiAimCondition()].yaw_modifier_range:GetValue()) / 2) * jitter_side_swapper
+            jitter_yaw = (math.random(0, anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier_range:GetValue()) / 2) * jitter_side_swapper
 
             jitter_side_swapper = -jitter_side_swapper   
             static_yaw_time = handler_variables.real_time
@@ -693,10 +688,10 @@ end
 
 local function tankJitter()
 
-    if anti_aim_elements[getAntiAimCondition()].yaw_modifier:GetValue() == 4 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier:GetValue() == 4 then
         if handler_variables.real_time - static_yaw_time >= (handler_variables.jitter_switch_time * handler_variables.TICK_TIME) then
 
-            jitter_yaw = ((anti_aim_elements[getAntiAimCondition()].yaw_modifier_range:GetValue() + math.random(-12, 12)) / 2) * jitter_side_swapper
+            jitter_yaw = ((anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier_range:GetValue() + math.random(-12, 12)) / 2) * jitter_side_swapper
 
             jitter_side_swapper = -jitter_side_swapper
             static_yaw_time = handler_variables.real_time
@@ -706,9 +701,9 @@ end
 
 local function randomTankJitter()
 
-    if anti_aim_elements[getAntiAimCondition()].yaw_modifier:GetValue() == 5 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier:GetValue() == 5 then
         if handler_variables.tick_count % 32 == 0 then
-            random_yaw = math.random(0, anti_aim_elements[getAntiAimCondition()].yaw_modifier_range:GetValue()) / 2
+            random_yaw = math.random(0, anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier_range:GetValue()) / 2
         end
 
         if handler_variables.real_time - static_yaw_time >= (handler_variables.jitter_switch_time * handler_variables.TICK_TIME) then
@@ -722,7 +717,7 @@ end
 
 local function fakeFlick()
 
-    if anti_aim_elements[getAntiAimCondition()].yaw_modifier:GetValue() == 6 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].yaw_modifier:GetValue() == 6 then
         if handler_variables.real_time - static_yaw_time >= ((jitter_side_swapper > 0 and 1 or handler_variables.jitter_switch_time) * handler_variables.TICK_TIME) then
             jitter_yaw = (jitter_side_swapper > 0 and 0 or (desync_inverted and 100 or -100))
 
@@ -889,7 +884,7 @@ local function calculateMainYaw()
 
     --checking for advanced mode
     if handler_variables.advanced_mode_enabled then
-        main_yaw = desync_inverted and anti_aim_elements[getAntiAimCondition()].yaw_angle_right:GetValue() or anti_aim_elements[getAntiAimCondition()].yaw_angle_left:GetValue()
+        main_yaw = desync_inverted and anti_aim_elements[handler_variables.anti_aim_condition].yaw_angle_right:GetValue() or anti_aim_elements[handler_variables.anti_aim_condition].yaw_angle_left:GetValue()
     else
         main_yaw = desync_inverted and anti_aim_simple_settings_ui.yaw_angle:GetValue() or -anti_aim_simple_settings_ui.yaw_angle:GetValue()
     end
@@ -902,7 +897,7 @@ end
 --showing which desync type is selected
 local function getDesyncType()
 
-    return ((anti_aim_elements[getAntiAimCondition()].desync_type:GetValue() == 0 and handler_variables.advanced_mode_enabled) 
+    return ((anti_aim_elements[handler_variables.anti_aim_condition].desync_type:GetValue() == 0 and handler_variables.advanced_mode_enabled) 
             or (anti_aim_simple_settings_ui.desync_type:GetValue() == 0  and not handler_variables.advanced_mode_enabled)) and " Desync" or " Desync Jitter"
 end
 --@endregion 
@@ -932,7 +927,7 @@ local current_jitter_angle = 0;
 local function setYaw()
 
     --isolated dessync jitter disabling all yaw jitters
-    if anti_aim_elements[getAntiAimCondition()].desync_modifier:GetValue() == 3 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].desync_modifier:GetValue() == 3 then
         current_jitter_angle = 0
     end
 
@@ -953,27 +948,27 @@ local desync_angle = 0;
 --desync_side_swapper the same with jitter_side_swapper
 local function staticDesync()
 
-    if anti_aim_elements[getAntiAimCondition()].desync_modifier:GetValue() == 0 or anti_aim_elements[getAntiAimCondition()].desync_modifier:GetValue() == 2 then
-        desync_angle = desync_inverted and -anti_aim_elements[getAntiAimCondition()].desync_range_right:GetValue() 
-                       or anti_aim_elements[getAntiAimCondition()].desync_range_left:GetValue()
+    if anti_aim_elements[handler_variables.anti_aim_condition].desync_modifier:GetValue() == 0 or anti_aim_elements[handler_variables.anti_aim_condition].desync_modifier:GetValue() == 2 then
+        desync_angle = desync_inverted and -anti_aim_elements[handler_variables.anti_aim_condition].desync_range_right:GetValue() 
+                       or anti_aim_elements[handler_variables.anti_aim_condition].desync_range_left:GetValue()
     end 
 end
 
 local function randomDesync()
 
-    if anti_aim_elements[getAntiAimCondition()].desync_modifier:GetValue() == 1 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].desync_modifier:GetValue() == 1 then
         if handler_variables.tick_count % 64 == 0 then
 
             desync_angle = desync_inverted
-                            and -math.random(0, anti_aim_elements[getAntiAimCondition()].desync_range_right:GetValue()) 
-                            or math.random(0, anti_aim_elements[getAntiAimCondition()].desync_range_left:GetValue())
+                            and -math.random(0, anti_aim_elements[handler_variables.anti_aim_condition].desync_range_right:GetValue()) 
+                            or math.random(0, anti_aim_elements[handler_variables.anti_aim_condition].desync_range_left:GetValue())
         end
     end
 end
 
 local function jitterDesync()
 
-    if anti_aim_elements[getAntiAimCondition()].desync_modifier:GetValue() == 2 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].desync_modifier:GetValue() == 2 then
         if handler_variables.real_time - static_desync_time >= (handler_variables.desync_switch_time * handler_variables.TICK_TIME) then
             desync_inverted = not desync_inverted
 
@@ -984,11 +979,11 @@ end
 
 local function isolatedJitterDesync()
 
-    if anti_aim_elements[getAntiAimCondition()].desync_modifier:GetValue() == 3 then
+    if anti_aim_elements[handler_variables.anti_aim_condition].desync_modifier:GetValue() == 3 then
         if handler_variables.real_time - static_desync_time >= (handler_variables.desync_switch_time * handler_variables.TICK_TIME) then
 
-            desync_angle = desync_side_swapper > 0 and -anti_aim_elements[getAntiAimCondition()].desync_range_right:GetValue() 
-            or anti_aim_elements[getAntiAimCondition()].desync_range_left:GetValue()
+            desync_angle = desync_side_swapper > 0 and -anti_aim_elements[handler_variables.anti_aim_condition].desync_range_right:GetValue() 
+            or anti_aim_elements[handler_variables.anti_aim_condition].desync_range_left:GetValue()
 
             desync_side_swapper = desync_side_swapper * -1
             static_desync_time = handler_variables.real_time
@@ -1748,7 +1743,7 @@ end
 local function drawUnderCrosshairIndicator()
 
     --in scope animation
-    if handler_variables.is_scoped then
+    if props.is_scoped then
         scope_animation_value = scope_animation_value + constants.SCOPE_ANIMATION_SPEED * getAnimationScale()
 
         if scope_animation_value > constants.SCOPE_ANIMATION_LENGTH then
@@ -1799,7 +1794,7 @@ local function drawWatermark()
 
     --creating text with all info
     watermark_text = ("BLEEDING   " .. handler_variables.user_name .. " | " ..  math.floor(handler_variables.fps_per_second) .. 
-                      " fps | " .. handler_variables.server .. " | delay: " .. handler_variables.ping .. " ms | " .. handler_variables.tickrate .. " tick")
+                      " fps | " .. handler_variables.server .. " | delay: " .. props.ping .. " ms | " .. handler_variables.tickrate .. " tick")
 
     if visuals_user_info_ui.watermark:GetValue() then
 
@@ -1841,11 +1836,11 @@ local function drawCustomScope()
         return
     end
 
-    --make smooth scohandler_variables.ping
+    --make smooth scope animation
     gui.SetValue("esp.other.noscopeoverlay", not (custom_scope:GetValue() and custom_scope_animation_value > 21.5))
 
     --animation
-    if handler_variables.is_scoped then
+    if props.is_scoped then
         custom_scope_animation_value = custom_scope_animation_value + constants.CUSTOM_SCOPE_ANIMATION_SPEED * getAnimationScale()
 
         if custom_scope_animation_value > visuals_other_ui.custom_scope_length:GetValue() then
@@ -1930,85 +1925,25 @@ local function drawDesyncSideIndicator()
                       screen_height / 2 - constants.DESYNC_SIDE_INDICATOR_SIZE_Y / 2 - 1)
 end
 
---cache system will help with values on unload
-local function getConvarVisualsCaches()
-
-    return {
-            client.GetConVar("viewmodel_offset_x"), 
-            client.GetConVar("viewmodel_offset_y"), 
-            client.GetConVar("viewmodel_offset_z"),
-            client.GetConVar("r_aspectratio")
-           }
-end
-local convar_visuals_caches = getConvarVisualsCaches()
-
---setting all caches of convar visuals
-local function setConvarVisualsCaches()
-    if not visuals_other_ui.view_model_changer:GetValue() then
-        setConvar("viewmodel_offset_x", convar_visuals_caches[1])
-        setConvar("viewmodel_offset_y", convar_visuals_caches[2])
-        setConvar("viewmodel_offset_z", convar_visuals_caches[3])
-    end
-
-    if not visuals_other_ui.aspect_ratio:GetValue() then
-        setConvar("r_aspectratio", convar_visuals_caches[4])
-    end
-end
-
 --setting all convars visuals
 local function setConvarVisuals()
 
     if visuals_other_ui.aspect_ratio:GetValue() then
         setConvar("r_aspectratio", visuals_other_ui.aspect_ratio_value:GetValue())
-    else
-        setConvarVisualsCaches()
     end
 
     if visuals_other_ui.view_model_changer:GetValue() then
         setConvar("viewmodel_offset_x", visuals_other_ui.view_model_changer_x:GetValue())
         setConvar("viewmodel_offset_y", visuals_other_ui.view_model_changer_y:GetValue())
         setConvar("viewmodel_offset_z", visuals_other_ui.view_model_changer_z:GetValue())
-    else
-        setConvarVisualsCaches()
     end
 end
-
 
 constants.MAX_COLOR_VALUE = 255;
 local post_proccesing = gui.Reference("Visuals", "Other", "Effects", "Effects Removal", "No Post Processing");
 
 --cache system will help with values on unload
 local world_modifications_caches = {}
-
-local function getWorldModificationsCaches()
-    if not handler_variables.tone_map_controller or not handler_variables.local_entity then return end
-
-    return {  
-            handler_variables.tone_map_controller:GetProp("m_flCustomBloomScaleMinimum"), handler_variables.tone_map_controller:GetProp("m_flCustomBloomScale"),
-            handler_variables.tone_map_controller:GetProp("m_flCustomAutoExposureMax"), handler_variables.tone_map_controller:GetProp("m_flCustomAutoExposureMin"),
-            client.GetConVar("r_modelAmbientMin"), client.GetConVar("mat_ambient_light_r"), 
-            client.GetConVar("mat_ambient_light_g"), client.GetConVar("mat_ambient_light_b")
-           }
-end
-
---setting all caches of visuals 
-local function setWorldModificationsCaches()
-    if not world_modifications_caches then return end
-    
-    if handler_variables.tone_map_controller then
-        setProp(handler_variables.tone_map_controller, "m_flCustomBloomScaleMinimum", world_modifications_caches[1])
-        setProp(handler_variables.tone_map_controller, "m_flCustomBloomScale", world_modifications_caches[2]);
-
-        setProp(handler_variables.tone_map_controller, "m_flCustomAutoExposureMax", world_modifications_caches[3])
-        setProp(handler_variables.tone_map_controller, "m_flCustomAutoExposureMin", world_modifications_caches[4])
-    end
-
-    setConvar("r_modelAmbientMin", world_modifications_caches[5])
-
-    setConvar("mat_ambient_light_r", world_modifications_caches[6])
-    setConvar("mat_ambient_light_g", world_modifications_caches[7])
-    setConvar("mat_ambient_light_b", world_modifications_caches[8])
-end
 
 --setting all world modifications
 local function setWolrdModifications()
@@ -2018,12 +1953,12 @@ local function setWolrdModifications()
             post_proccesing:SetValue(false)
         end
 
-        if handler_variables.tone_map_controller then
-            setProp(handler_variables.tone_map_controller, "m_flCustomBloomScaleMinimum", visuals_other_ui.world_modifications_bloom:GetValue() * 0.1)
-            setProp(handler_variables.tone_map_controller, "m_flCustomBloomScale", visuals_other_ui.world_modifications_bloom:GetValue() * 0.1);
+        if props.tone_map_controller then
+            setProp(props.tone_map_controller, "m_flCustomBloomScaleMinimum", visuals_other_ui.world_modifications_bloom:GetValue() * 0.1)
+            setProp(props.tone_map_controller, "m_flCustomBloomScale", visuals_other_ui.world_modifications_bloom:GetValue() * 0.1);
 
-            setProp(handler_variables.tone_map_controller, "m_flCustomAutoExposureMax", 1.01 - (visuals_other_ui.world_modifications_exposure:GetValue() * 0.01))
-            setProp(handler_variables.tone_map_controller, "m_flCustomAutoExposureMin", 1.01 - (visuals_other_ui.world_modifications_exposure:GetValue() * 0.01))
+            setProp(props.tone_map_controller, "m_flCustomAutoExposureMax", 1.01 - (visuals_other_ui.world_modifications_exposure:GetValue() * 0.01))
+            setProp(props.tone_map_controller, "m_flCustomAutoExposureMin", 1.01 - (visuals_other_ui.world_modifications_exposure:GetValue() * 0.01))
         end
 
         setConvar("r_modelAmbientMin", visuals_other_ui.world_modifications_ambient:GetValue() * 0.1)
@@ -2033,45 +1968,20 @@ local function setWolrdModifications()
         setConvar("mat_ambient_light_r", world_color_ambient[1] / constants.MAX_COLOR_VALUE)
         setConvar("mat_ambient_light_g", world_color_ambient[2] / constants.MAX_COLOR_VALUE)
         setConvar("mat_ambient_light_b", world_color_ambient[3] / constants.MAX_COLOR_VALUE)
-    else
-        setWorldModificationsCaches()
-    end
-end
-
---creating caches table to install them on unload 
-local function createVisualsCachesData()
-    if not world_modifications_caches then
-        world_modifications_caches = getWorldModificationsCaches()
     end
 end
 
 --reseting visual's tables to set them on reconnect to the new server
-local tables_reseted = false;
-
 local function resetVisualsArrays()
     
     --clearing convar, props arrays data, when local entity is nil
-    if (not handler_variables.tone_map_controller or not handler_variables.local_entity) and not tables_reseted then
+    if (not props.tone_map_controller or not handler_variables.local_entity) then
 
         --print("tables has been reseted")
         prop_array = {}
         convar_array = {}   
-
-        tables_reseted = true
-    end
-
-    --reseting table reseted, while has local entity
-    if handler_variables.tone_map_controller and handler_variables.local_entity then
-
-        tables_reseted = false
     end
 end
-
---button, which updating caches of all convars
-visuals_other_ui.update_visuals_other_caches = gui.Button(visuals_other, "Update Caches", function()
-    world_modifications_caches = getWorldModificationsCaches()
-    convar_visuals_caches = getConvarVisualsCaches()
-end)
 --@endregion
 
 
@@ -2124,16 +2034,6 @@ local function adaptiveAutoscope()
     end
 end
 
---static arms cache
-local function setStaticArmsCaches()
-    setConvar("cl_bob_lower_amt", 19)
-    setConvar("cl_bobamt_vert", 0.16)
-    setConvar("cl_bobamt_lat", 0.37)
-    setConvar("cl_bobcycle", 0.6)
-    setConvar("cl_viewmodel_shift_right_amt", 0.75)
-    setConvar("cl_viewmodel_shift_left_amt", 1.5)
-end
-
 --setting static arms
 local function staticArms()
     if misc_useful_ui.static_arms:GetValue() then
@@ -2144,9 +2044,6 @@ local function staticArms()
         setConvar("cl_bobcycle", 0.98)
         setConvar("cl_viewmodel_shift_right_amt", 0.25000)
         setConvar("cl_viewmodel_shift_left_amt", 0.5000)
-    else
-        
-        setStaticArmsCaches()
     end
 end
 
@@ -2513,7 +2410,6 @@ callbacks.Register("PostMove", function()
 
         --visuals
         selectColorTheme()
-        createVisualsCachesData()
         setConvarVisuals()
         setWolrdModifications()
 
@@ -2531,16 +2427,6 @@ callbacks.Register("FireGameEvent", function(event)
 end)
 
 callbacks.Register("Unload", function()
-    --returning caches of convars
-    setConvar("viewmodel_offset_x", convar_visuals_caches[1])
-    setConvar("viewmodel_offset_y", convar_visuals_caches[2])
-    setConvar("viewmodel_offset_z", convar_visuals_caches[3])
-    setConvar("r_aspectratio", convar_visuals_caches[4])
-
-    setWorldModificationsCaches()
-
-    setStaticArmsCaches()
-
     --updating our file on unload to get latest number of elements
 	local file_name = getFileName()
 	file.Delete(file_name)
