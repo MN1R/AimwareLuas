@@ -1,6 +1,6 @@
 --@region HADLE_FOR_UPDATES
 --really simple auto updater
-local CURRENT_LUA_VERSION = 1.31;
+local CURRENT_LUA_VERSION = 1.32;
 local LATEST_LUA_VERSION = tonumber(http.Get("https://raw.githubusercontent.com/MN1R/AimwareLuas/main/BleedingVersion"))
 
 --checking for version == latest
