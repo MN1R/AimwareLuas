@@ -18,6 +18,7 @@ if CURRENT_LUA_VERSION ~= LATEST_LUA_VERSION then
 
     print("Script successfuly updated, reload it.")
     UnloadScript(LUA_NAME .. ".lua")
+    UnloadScript(LUA_NAME)
 end
 
 print("Successfuly loaded: " .. CURRENT_LUA_VERSION .. " script version.")
