@@ -1,6 +1,6 @@
 --@region HADLE_FOR_UPDATES
 --really simple auto updater
-local CURRENT_LUA_VERSION = 1.32;
+local CURRENT_LUA_VERSION = 1.31;
 local LATEST_LUA_VERSION = tonumber(http.Get("https://raw.githubusercontent.com/MN1R/AimwareLuas/main/BleedingVersion"))
 
 --checking for version == latest
@@ -10,14 +10,14 @@ if CURRENT_LUA_VERSION ~= LATEST_LUA_VERSION then
 
     --downloading latest version
     local LATEST_LUA_CODE = http.Get("https://raw.githubusercontent.com/MN1R/AimwareLuas/main/Bleeding")
-    local LUA_FILE = GetScriptName() .. ".lua"
+    local LUA_NAME = GetScriptName()
 
     --deleting and writing new file with updated script
-    file.Delete(LUA_FILE)
+    file.Delete(GetScriptName .. ".lua")
     file.Write(LUA_FILE, LATEST_LUA_CODE)
 
     print("Script successfuly updated, reload it.")
-    UnloadScript(LUA_FILE)
+    UnloadScript(LUA_NAME)
 end
 --@endregion
 
