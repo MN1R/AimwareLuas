@@ -14,7 +14,7 @@ if CURRENT_LUA_VERSION ~= LATEST_LUA_VERSION then
 
     --deleting and writing new file with updated script
     file.Delete(LUA_NAME .. ".lua")
-    file.Write(LUA_FILE, LATEST_LUA_CODE)
+    file.Write(LUA_NAME, LATEST_LUA_CODE)
 
     print("Script successfuly updated, reload it.")
     UnloadScript(LUA_NAME)
