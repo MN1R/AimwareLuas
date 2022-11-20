@@ -17,8 +17,10 @@ if CURRENT_LUA_VERSION ~= LATEST_LUA_VERSION then
     file.Write(LUA_NAME, LATEST_LUA_CODE)
 
     print("Script successfuly updated, reload it.")
-    UnloadScript(LUA_NAME)
+    UnloadScript(LUA_NAME .. ".lua")
 end
+
+print("Successfuly loaded: " .. CURRENT_LUA_VERSION .. " script version.")
 --@endregion
 
 
