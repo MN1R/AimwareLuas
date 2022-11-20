@@ -212,36 +212,6 @@ local function getScreenSize()
 end
 --_____________________________________--
 
-
---_____________sliders ui______________--
-local function slidersUi()
-
-    --creating position sliders later cuz they are need our screen size
-    if screen_width and screen_height then
-        visuals_user_info_ui.keybinds_position_x = gui.Slider(visuals_user_info, "keybinds_position_x", "Keybinds Postion X", 300, 0, screen_width) 
-        visuals_user_info_ui.keybinds_position_y = gui.Slider(visuals_user_info, "keybinds_position_y", "Keybinds Postion Y", 400, 0, screen_height)
-        
-        visuals_user_info_ui.keybinds_position_x:SetInvisible(true)
-        visuals_user_info_ui.keybinds_position_y:SetInvisible(true) 
-
-        visuals_user_info_ui.weapon_info_position_x = gui.Slider(visuals_user_info, "weapon_info_position_x", "Weapon Info Postion X", 500, 0, screen_width)
-        visuals_user_info_ui.weapon_info_position_y = gui.Slider(visuals_user_info, "weapon_info_position_y", "Weapon Info Postion Y", 400, 0, screen_height)
-
-        visuals_user_info_ui.weapon_info_position_x:SetInvisible(true)
-        visuals_user_info_ui.weapon_info_position_y:SetInvisible(true)
-    end
-end
-
-local function createScreenSizeBasedUi()
-
-    --this function require Draw callback to get screen sizes
-    if not screen_width or not screen_height then
-        getScreenSize()
-        slidersUi()
-    end
-end
---_____________________________________--
-
 ----------------------------------------------
 
 
@@ -254,13 +224,14 @@ local misc_useful = gui.Groupbox(misc_tab, "Useful", 5, 10, 325, 450);
 local misc_useful_ui =
 {
     adaptive_autoscope = gui.Checkbox(misc_useful, "adaptive_autoscope", "Enable Adaptive Autoscope", false),
-    static_arms = gui.Checkbox(misc_useful, "static_arms", "Enable Static Arms", false)
+    static_arms = gui.Checkbox(misc_useful, "static_arms", "Enable Static Arms", false),
+    viewmodel_in_scope = gui.Checkbox(misc_useful, "viewmodel_in_scope", "Enable Viewmodel In Scope", false)
 }
 
 --_____________________________________--
 
 --_______________events________________--
-local misc_events = gui.Groupbox(misc_tab, "Events", 5, 140, 325, 450);
+local misc_events = gui.Groupbox(misc_tab, "Events", 5, 180, 325, 450);
 
 local misc_events_ui = 
 {
@@ -317,8 +288,8 @@ end
 
 
 
---@region PROTECTED_CONVARS_PROPS
---there safe props and convars, cuz they are should be installed once
+--@region PROTECTED_CONVARS_PROPS_GUI
+--there safe props and convars and gui:SetInvisible(), cuz they are should be installed once
 
 local convar_array = {}
 
@@ -345,10 +316,52 @@ local function setProp(entity, name, value)
         prop_array[name] = value
    end
 end
+
+local gui_array = {}
+
+local function setInvisible(gui_element, value)
+    
+    --checking for convar value is new
+    if value and value ~= gui_array[name] or not gui_array[name] then
+
+        --print(name .. " convar installed to the value: " .. value)
+        gui_element:SetInvisible(value)
+        gui_array[gui_element] = value
+   end
+end
 --@endregion
 
 
+--@region PROTECTED_CONVARS_PROPS_GUI
+--_____________sliders ui______________--
+local function slidersUi()
 
+    --creating position sliders later cuz they are need our screen size
+    if screen_width and screen_height then
+        visuals_user_info_ui.keybinds_position_x = gui.Slider(visuals_user_info, "keybinds_position_x", "Keybinds Postion X", 300, 0, screen_width) 
+        visuals_user_info_ui.keybinds_position_y = gui.Slider(visuals_user_info, "keybinds_position_y", "Keybinds Postion Y", 400, 0, screen_height)
+        
+        setInvisible(visuals_user_info_ui.keybinds_position_x, true)
+        setInvisible(visuals_user_info_ui.keybinds_position_y, true) 
+
+        visuals_user_info_ui.weapon_info_position_x = gui.Slider(visuals_user_info, "weapon_info_position_x", "Weapon Info Postion X", 500, 0, screen_width)
+        visuals_user_info_ui.weapon_info_position_y = gui.Slider(visuals_user_info, "weapon_info_position_y", "Weapon Info Postion Y", 400, 0, screen_height)
+
+        setInvisible(visuals_user_info_ui.weapon_info_position_x, true)
+        setInvisible(visuals_user_info_ui.weapon_info_position_y, true)
+    end
+end
+
+local function createScreenSizeBasedUi()
+
+    --this function require Draw callback to get screen sizes
+    if not screen_width or not screen_height then
+        getScreenSize()
+        slidersUi()
+    end
+end
+--_____________________________________--
+--@endregion
 
 
 --@region USEFUL_VALUES
@@ -594,40 +607,43 @@ end
 --just a function which controlling gui visibility in some cases
 local function changeGui()
 
-    anti_aim_advanced_settings:SetInvisible(not handler_variables.advanced_mode_enabled)
-    anti_aim_condition_selector:SetInvisible(not handler_variables.advanced_mode_enabled)
-    anti_aim_simple_settings:SetInvisible(handler_variables.advanced_mode_enabled)
+    setInvisible(anti_aim_advanced_settings, not handler_variables.advanced_mode_enabled)
+    setInvisible(anti_aim_condition_selector, not handler_variables.advanced_mode_enabled)
+    setInvisible(anti_aim_simple_settings, handler_variables.advanced_mode_enabled)
 
     --make invisible not selected elements
     for condition = 1, #anti_aim_elements, 1 do
+
+        --iterating over all elements in condition
         for _, element in pairs(anti_aim_elements[condition]) do
+
             if (condition_selector:GetValue() + 1) then
-                element:SetInvisible((condition_selector:GetValue() + 1) ~= condition)
+
+                setInvisible(element, (condition_selector:GetValue() + 1) ~= condition)
             end
         end
     end
 
-    anti_aim_elements[1].override_condition:SetInvisible(true)
+    setInvisible(anti_aim_elements[1].override_condition, true)
 
 
-    visuals_other_ui.custom_scope_length:SetInvisible(not custom_scope:GetValue())
-    visuals_other_ui.custom_scope_indent:SetInvisible(not custom_scope:GetValue())
+    setInvisible(visuals_other_ui.custom_scope_length, not custom_scope:GetValue())
+    setInvisible(visuals_other_ui.custom_scope_indent, not custom_scope:GetValue())
 
-    visuals_other_ui.view_model_changer_x:SetInvisible(not visuals_other_ui.view_model_changer:GetValue())
-    visuals_other_ui.view_model_changer_y:SetInvisible(not visuals_other_ui.view_model_changer:GetValue())
-    visuals_other_ui.view_model_changer_z:SetInvisible(not visuals_other_ui.view_model_changer:GetValue())
+    setInvisible(visuals_other_ui.view_model_changer_x, not visuals_other_ui.view_model_changer:GetValue())
+    setInvisible(visuals_other_ui.view_model_changer_y, not visuals_other_ui.view_model_changer:GetValue())
+    setInvisible(visuals_other_ui.view_model_changer_z, not visuals_other_ui.view_model_changer:GetValue())
 
-    visuals_other_ui.aspect_ratio_value:SetInvisible(not visuals_other_ui.aspect_ratio:GetValue())
+    setInvisible(visuals_other_ui.aspect_ratio_value, not visuals_other_ui.aspect_ratio:GetValue())
 
-    visuals_other_ui.world_modifications_exposure:SetInvisible(not visuals_other_ui.world_modifications:GetValue())
-    visuals_other_ui.world_modifications_bloom:SetInvisible(not visuals_other_ui.world_modifications:GetValue())
-    visuals_other_ui.world_modifications_ambient:SetInvisible(not visuals_other_ui.world_modifications:GetValue())
-    visuals_other_ui.world_modifications_ambient_color:SetInvisible(not visuals_other_ui.world_modifications:GetValue())
+    setInvisible(visuals_other_ui.world_modifications_exposure, not visuals_other_ui.world_modifications:GetValue())
+    setInvisible(visuals_other_ui.world_modifications_bloom, not visuals_other_ui.world_modifications:GetValue())
+    setInvisible(visuals_other_ui.world_modifications_ambient, not visuals_other_ui.world_modifications:GetValue())
+    setInvisible(visuals_other_ui.world_modifications_ambient_color, not visuals_other_ui.world_modifications:GetValue())
 
-    misc_events_ui.buy_bot_primary:SetInvisible(not misc_events_ui.buy_bot:GetValue())
-    misc_events_ui.buy_bot_secondary:SetInvisible(not misc_events_ui.buy_bot:GetValue())
-    misc_events_ui.buy_bot_extra:SetInvisible(not misc_events_ui.buy_bot:GetValue())
-
+    setInvisible(misc_events_ui.buy_bot_primary, not misc_events_ui.buy_bot:GetValue())
+    setInvisible(misc_events_ui.buy_bot_secondary, not misc_events_ui.buy_bot:GetValue())
+    setInvisible(misc_events_ui.buy_bot_extra, not misc_events_ui.buy_bot:GetValue())
 end
 --@endregion
 
@@ -2047,6 +2063,11 @@ local function staticArms()
     end
 end
 
+local function viewmodelInScope()
+
+    setConvar("fov_cs_debug", misc_useful_ui.viewmodel_in_scope:GetValue() and 90 or 0)
+end
+
 --getting, what will bought like extra 
 local buy_bot_extra_commands = {"buy vesthelm", "buy vest", "buy taser", "buy defuser", "buy hegrenade", "buy molotov; buy incgrenade", "buy smokegrenade"}
 
@@ -2178,9 +2199,10 @@ local function changeElementsUi()
 
 		--iterating over all element setting to make them invisible
 		for element = 1, #elements_setting_array, 1 do 
-			elements_setting_array[element].desync_angle:SetInvisible(not elements_array[element]:GetValue())
-			elements_setting_array[element].yaw_angle:SetInvisible(not elements_array[element]:GetValue())
-			elements_setting_array[element].time_to_switch:SetInvisible(not elements_array[element]:GetValue())
+
+			setInvisible(elements_setting_array[element].desync_angle, not elements_array[element]:GetValue())
+			setInvisible(elements_setting_array[element].yaw_angle, not elements_array[element]:GetValue())
+			setInvisible(elements_setting_array[element].time_to_switch, not elements_array[element]:GetValue())
 		end
 	end
 end
@@ -2308,7 +2330,6 @@ end
 callbacks.Register("Draw", function()  
     --gui
     createScreenSizeBasedUi()
-    changeGui()
     
     --preparing
     scriptPreparing()
@@ -2318,21 +2339,9 @@ callbacks.Register("Draw", function()
 
     --optimizer
     clearHitArray()
-    resetVisualsArrays()
 
     --visuals
     controleVisualsPostion()
-
-    --making 1 more preparation for lagsync gui
-    if lagsync_enable:GetValue() then
-        if is_first_load then
-            preparation_finished = false
-            load_time = globals.RealTime()
-        end
-        
-        changeElementsUi()
-        makeFirstElements()
-    end
 
     if preparation_finished and handler_variables.local_entity then
 
@@ -2341,7 +2350,6 @@ callbacks.Register("Draw", function()
 
         --yaw modifiers
         callManualsFunctions()
-        lagsyncStageCounter()
 
         --visual events
         worldHitmarker()
@@ -2378,6 +2386,21 @@ end)
 callbacks.Register("PostMove", function()
     --handlers
     getKeybindsStates()
+    changeGui()
+
+    --optimizers
+    resetVisualsArrays()
+
+    --making 1 more preparation for lagsync gui
+    if lagsync_enable:GetValue() then
+        if is_first_load then
+            preparation_finished = false
+            load_time = globals.RealTime()
+        end
+                
+        changeElementsUi()
+        makeFirstElements()
+    end
 
     if preparation_finished and handler_variables.local_entity then
 
@@ -2389,6 +2412,8 @@ callbacks.Register("PostMove", function()
             simpleJitter()
 
             setYaw()
+
+            lagsyncStageCounter()
 
             --desync modifiers
             callDesyncFunctions()
@@ -2416,6 +2441,7 @@ callbacks.Register("PostMove", function()
         --misc
         adaptiveAutoscope()
         staticArms()
+        viewmodelInScope()
     end
 end)
 
@@ -2431,7 +2457,12 @@ callbacks.Register("Unload", function()
 	local file_name = getFileName()
 	file.Delete(file_name)
 
-	file.Write(file_name, #elements_array)
+    --checking to create not null file
+    if #elements_array == 0 then
+	    file.Write(file_name, "1")
+    else
+        file.Write(file_name, #elements_array)
+    end
 end)
 --@endregion
 
