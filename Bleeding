@@ -15,12 +15,9 @@ if CURRENT_LUA_VERSION ~= LATEST_LUA_VERSION then
     --deleting and writing new file with updated script
     file.Delete(LUA_FILE)
     file.Write(LUA_FILE, LATEST_LUA_CODE)
+
+    print("Script successfuly updated, reload it.")
     UnloadScript(LUA_FILE)
-
-    --loading updated script
-    LoadScript(LUA_FILE)
-
-    print("Script successfuly updated.")
 end
 --@endregion
 
