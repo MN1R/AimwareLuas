@@ -1,6 +1,6 @@
 --@region HADLE_FOR_UPDATES
 --really simple auto updater
-local CURRENT_LUA_VERSION = 1.32;
+local CURRENT_LUA_VERSION = 1.33;
 local LATEST_LUA_VERSION = tonumber(http.Get("https://raw.githubusercontent.com/MN1R/AimwareLuas/main/BleedingVersion"))
 
 --checking for version == latest
@@ -2356,6 +2356,7 @@ end
 callbacks.Register("Draw", function()  
     --gui
     createScreenSizeBasedUi()
+    changeGui()
     
     --preparing
     scriptPreparing()
@@ -2368,6 +2369,17 @@ callbacks.Register("Draw", function()
 
     --visuals
     controleVisualsPostion()
+
+    --making 1 more preparation for lagsync gui
+    if lagsync_enable:GetValue() then
+        if is_first_load then
+            preparation_finished = false
+            load_time = globals.RealTime()
+        end
+                
+        changeElementsUi()
+        makeFirstElements()
+    end
 
     if preparation_finished and handler_variables.local_entity then
 
@@ -2412,21 +2424,9 @@ end)
 callbacks.Register("PostMove", function()
     --handlers
     getKeybindsStates()
-    changeGui()
 
     --optimizers
     resetVisualsArrays()
-
-    --making 1 more preparation for lagsync gui
-    if lagsync_enable:GetValue() then
-        if is_first_load then
-            preparation_finished = false
-            load_time = globals.RealTime()
-        end
-                
-        changeElementsUi()
-        makeFirstElements()
-    end
 
     if preparation_finished and handler_variables.local_entity then
 
