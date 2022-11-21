@@ -16,6 +16,11 @@ if CURRENT_LUA_VERSION ~= LATEST_LUA_VERSION then
     file.Delete(LUA_NAME .. ".lua")
     file.Write(LUA_NAME, LATEST_LUA_CODE)
 
+    --opening updates
+    panorama.RunScript([[
+        SteamOverlayAPI.OpenUrlInOverlayOrExternalBrowser("https://raw.githubusercontent.com/MN1R/AimwareLuas/main/BleedingUpdates");
+    ]])
+
     print("Script successfuly updated, reload it.")
     return
 end
