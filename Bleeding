@@ -2439,8 +2439,6 @@ callbacks.Register("PostMove", function()
 
             setYaw()
 
-            lagsyncStageCounter()
-
             --desync modifiers
             callDesyncFunctions()
             simpleDesync()
@@ -2448,6 +2446,8 @@ callbacks.Register("PostMove", function()
             setDesync()
 
         else
+            
+            lagsyncStageCounter()
             
             --checking, that we has elements with given number
             if elements_array[current_lagsync_stage] and elements_setting_array[current_lagsync_stage] then
