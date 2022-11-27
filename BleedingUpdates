@@ -1,32 +1,17 @@
-Version V1.0 released
+Version V2 update:
 
-Version V1.1 update:
-1) Improved caches of convar/prop visuals and now they are working fine on server switch
+MAIN
+-Lua has been separeted to anti-aims script and visuals script(misc will be released soon)
+-Code base has been reorganized and optimized
 
-Version V1.1.1 update:
-1) Added Static Arms
 
-Version V1.1.2 update:
-1) Now jitters works perfect with fakelags all fakelag types
+ANTI-AIMS
+-Added config system
+-Improved tank jitters
+-Improved stability
+-Removed useless options
 
-Version V1.2 update:
-1) Added cool animation for under crosshair indicator
-2) Changed font for world damage marker
-
-c1) Now code is commented better
-c2) Some changes in code logic
-
-Version V1.3 update:
-1) Added new aa system
-
-Version V1.3.1 update:
-1) Improved performance, if u have problems with it PM me
-
-Version V1.3.2 update:
-1) Added auto updater
-2) Added viewmodel in scope
-3) Improved performance
-
-Version V1.3.3 update:
-1) Fixed gui
-2) Fixed lagsyncs
+VISUALS
+-Fully reworked all visuals
+-Reworked caching for world visuals
+-Some functions been removed for rework
