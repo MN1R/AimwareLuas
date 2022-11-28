@@ -12,6 +12,7 @@ file_open:Close()
 
 --getting full vesrion without any memes
 LAST_VERSION = string.sub(file_data, 0, string.len(CURRENT_VERSION));
+print(LAST_VERSION)
 
 --deleting file
 file.Delete(latest_version_file_name)
@@ -22,14 +23,18 @@ if LAST_VERSION ~= CURRENT_VERSION then
     print("Lua is outdated.")
 
     --getting latest data
-    local LAST_LUA_DATA = ""
+    local LAST_LUA_DATA = http.Get("https://raw.githubusercontent.com/MN1R/AimwareLuas/main/AutoUpdaterLua")
+    print(LAST_LUA_DATA)
+
+    --starting update
+    print("Starting update proccess.")
+    local script_name = GetScriptName()
 
     --deleting current lua
-    print("Starting update proccess.")
-    file.Delete(GetScriptName() .. ".lua")
+    file.Delete(script_name)
 
     --writing new file with latest data
-    file.Write(GetScriptName() .. ".lua", LAST_LUA_DATA)
+    file.Write(GetScriptName(), LAST_LUA_DATA)
     print("Script succesfully updated. Load it again.")
     return
 end
