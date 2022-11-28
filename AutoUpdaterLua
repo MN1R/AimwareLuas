@@ -1,0 +1,38 @@
+local CURRENT_VERSION = "1.25"
+local LAST_VERSION = http.Get("https://raw.githubusercontent.com/MN1R/AimwareLuas/main/AutoUpdater")
+
+--writing file with our version to remove tonumber, string.gsub for random format
+local latest_version_file_name = "bleeding_last_version.txt"
+file.Write(latest_version_file_name, tostring(LAST_VERSION))
+
+--getting data from file, its 100% string
+local file_open = file.Open(latest_version_file_name, 'r')
+local file_data = file_open:Read()
+file_open:Close()
+
+--getting full vesrion without any memes
+LAST_VERSION = string.sub(file_data, 0, string.len(CURRENT_VERSION));
+
+--deleting file
+file.Delete(latest_version_file_name)
+
+--if lua is outdated
+if LAST_VERSION ~= CURRENT_VERSION then
+
+    print("Lua is outdated.")
+
+    --getting latest data
+    local LAST_LUA_DATA = ""
+
+    --deleting current lua
+    print("Starting update proccess.")
+    file.Delete(GetScriptName() .. ".lua")
+
+    --writing new file with latest data
+    file.Write(GetScriptName() .. ".lua", LAST_LUA_DATA)
+    print("Script succesfully updated. Load it again.")
+    return
+end
+
+--if lua is updated
+print("Successfully loaded " .. LAST_VERSION .. " version.")
