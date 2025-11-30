@@ -1,0 +1,91 @@
+local misc_features_tab = gui.Reference("Miscellaneous", "Features");
+
+local auto_delay_enable = gui.Checkbox(misc_features_tab, "auto_delay_enable", "Auto Delay", true);
+local auto_delay_multipoints = gui.Slider(misc_features_tab, "auto_delay_multipoints", "Auto Delay Multipoints", 0.55, 0, 1, 0.01);
+
+local screen_width, screen_height = draw.GetScreenSize();
+
+local function getWeaponGroup()
+	local active = gui.GetValue("lbot.weapon.target")
+	local group_names = {
+        ["\"Shared\""] =            "shared";
+		["\"Zeus\""] =              "zeus";
+		["\"Pistol\""] =            "pistol";
+		["\"Heavy Pistol\""] =      "hpistol";
+		["\"Submachine Gun\""] =    "smg";
+		["\"Rifle\""] =             "rifle";
+		["\"Shotgun\""] =           "shotgun";
+		["\"Scout\""] =             "scout";
+		["\"Auto Sniper\""] =       "asniper";
+		["\"Sniper\""] =            "sniper";
+		["\"Light Machine Gun\""] = "lmg";
+		["\"Knife\""] =             "knife";
+    };
+	
+	return group_names[active]
+end
+
+local function getClosestToCrosshair()
+    local distance_to_closest_hitbox = math.huge                --giant number
+    local local_entity = entities.GetLocalPawn()
+	local closest_entity = nil	
+	if not local_entity or not local_entity:IsAlive() then
+		return nil, 0, 0
+	end
+
+
+	local FIRST_HITBOX = 0                                      --head hitbox
+    local LAST_HITBOX = 7                                       --right leg hitbox
+
+
+    for _, entity in pairs(entities.FindByClass("C_CSPlayerPawn")) do
+    	--check entity for valid
+        if entity:GetTeamNumber() ~= local_entity:GetTeamNumber() and entity:GetIndex() ~= local_entity:GetIndex() and entity:IsPlayer() and entity:IsAlive() then
+
+			for hitbox = FIRST_HITBOX, LAST_HITBOX do  
+            	local hitbox_on_screen = {client.WorldToScreen(entity:GetHitboxPosition(hitbox))}
+            	local distance_to_hitbox = vector.Distance(screen_width / 2, screen_height / 2, 0, hitbox_on_screen[1], hitbox_on_screen[2], 0)
+
+            	if distance_to_hitbox < distance_to_closest_hitbox then
+                	distance_to_closest_hitbox = distance_to_hitbox
+                	closest_entity = entity
+				end
+            end
+        end
+    end
+	
+	if not closest_entity then 
+		return nil, 0, 0
+	end
+
+	local local_abs = local_entity:GetAbsOrigin()
+	local entity_abs = closest_entity:GetAbsOrigin()
+	local distance_to_entity = vector.Distance(entity_abs.x, entity_abs.y, entity_abs.z, local_abs.x, local_abs.y, local_abs.z)
+
+	return closest_entity, distance_to_entity, distance_to_closest_hitbox
+end 
+
+local function autoDelay()
+    local entity, origin_distance, crosshair_distance  = getClosestToCrosshair()
+	if not entity or not auto_delay_enable:GetValue() then
+		return
+	end
+
+    local real_distance = crosshair_distance/(1000/origin_distance)
+    local weapon_group = getWeaponGroup()
+
+    --force 0 delay, when crosshair on hitbox
+    if real_distance <= 10*auto_delay_multipoints:GetValue() then
+        gui.SetValue("lbot.weapon.target." .. weapon_group .. ".fsd", 0)
+
+    --else calculate optimal delay for this smooth
+    else
+        local smooth = gui.GetValue("lbot.weapon.aim." .. weapon_group .. ".smooth")
+        local delay = real_distance*(smooth+1)
+        gui.SetValue("lbot.weapon.target." .. weapon_group .. ".fsd", delay)
+   end
+end
+
+callbacks.Register("Draw", function()
+    autoDelay()
+end)
