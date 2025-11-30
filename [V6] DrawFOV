@@ -1,0 +1,158 @@
+local misc_features_tab = gui.Reference("Miscellaneous", "Features");
+
+local draw_fov_enable = gui.Checkbox(misc_features_tab, "draw_fov_enable", "Draw FOV", true);
+local draw_fov_color = gui.ColorPicker(draw_fov_enable, "draw_fov_color", "", 140, 160, 200, 255);
+local draw_fov_color2 = gui.ColorPicker(draw_fov_enable, "draw_fov_color2", "", 0, 0, 0, 0);
+local draw_fov_3d_enable = gui.Checkbox(misc_features_tab, "draw_fov_3d_enable", "Draw FOV 3D", false);
+local draw_fov_gradient = gui.Checkbox(misc_features_tab, "draw_fov_gradient", "Draw FOV Gradient", true);
+
+local screen_width, screen_height = draw.GetScreenSize();
+
+local function getWeaponGroup()
+	local active = gui.GetValue("lbot.weapon.target")
+	local group_names = {
+        ["\"Shared\""] =            "shared";
+		["\"Zeus\""] =              "zeus";
+		["\"Pistol\""] =            "pistol";
+		["\"Heavy Pistol\""] =      "hpistol";
+		["\"Submachine Gun\""] =    "smg";
+		["\"Rifle\""] =             "rifle";
+		["\"Shotgun\""] =           "shotgun";
+		["\"Scout\""] =             "scout";
+		["\"Auto Sniper\""] =       "asniper";
+		["\"Sniper\""] =            "sniper";
+		["\"Light Machine Gun\""] = "lmg";
+		["\"Knife\""] =             "knife";
+    };
+
+	return group_names[active]
+end
+
+local function getClosestToCrosshair()
+    local distance_to_closest_hitbox = math.huge                --giant number
+    local local_entity = entities.GetLocalPawn()
+	local closest_entity = nil
+	if not local_entity or not local_entity:IsAlive() then
+		return nil, 0, 0
+	end
+
+
+	local FIRST_HITBOX = 0                                      --head hitbox
+    local LAST_HITBOX = 7                                       --right leg hitbox
+
+
+    for _, entity in pairs(entities.FindByClass("C_CSPlayerPawn")) do
+    	--check entity for valid
+        if entity:GetTeamNumber() ~= local_entity:GetTeamNumber() and entity:GetIndex() ~= local_entity:GetIndex() and entity:IsPlayer() and entity:IsAlive() then
+
+			for hitbox = FIRST_HITBOX, LAST_HITBOX do
+            	local hitbox_on_screen = {client.WorldToScreen(entity:GetHitboxPosition(hitbox))}
+            	local distance_to_hitbox = vector.Distance(screen_width / 2, screen_height / 2, 0, hitbox_on_screen[1], hitbox_on_screen[2], 0)
+
+            	if distance_to_hitbox < distance_to_closest_hitbox then
+                	distance_to_closest_hitbox = distance_to_hitbox
+                	closest_entity = entity
+				end
+            end
+        end
+    end
+
+	if not closest_entity then
+		return nil, 0, 0
+	end
+
+	local local_abs = local_entity:GetAbsOrigin()
+	local entity_abs = closest_entity:GetAbsOrigin()
+	local distance_to_entity = vector.Distance(entity_abs.x, entity_abs.y, entity_abs.z, local_abs.x, local_abs.y, local_abs.z)
+
+	return closest_entity, distance_to_entity, distance_to_closest_hitbox
+end
+
+local function drawGradientCircle(x, y, radius, color1, color2)
+	local r1, g1, b1, a1 = color1[1], color1[2], color1[3], color1[4]
+	local r2, g2, b2, a2 = color2[1], color2[2], color2[3], color2[4]
+	local dr, dg = (color2[1] - color1[1])/radius, (color2[2] - color1[2])/radius
+	local db, da = (color2[3] - color1[3])/radius, (color2[4] - color1[4])/radius
+
+	while radius > 0 do
+		draw.Color(r1, g1, b1, a1)
+		draw.OutlinedCircle(x, y, radius)
+		r1 = r1 + dr
+		g1 = g1 + dg
+		b1 = b1 + db
+		a1 = a1 + da
+		radius = radius - 1
+	end
+end
+
+local function drawFov()
+	local entity, origin_distance, crosshair_distance  = getClosestToCrosshair()
+	if not entity or not draw_fov_enable:GetValue() then
+		return
+	end
+
+	local fov = gui.GetValue("lbot.master") and gui.GetValue("lbot.weapon.target." .. getWeaponGroup() .. ".maxfov") or gui.GetValue("rbot.fov")
+	local scope_booster = entities.GetLocalPawn():GetFieldInt("m_bIsScoped") == 0 and 1 or 2
+	local radius = gui.GetValue("lbot.master") and scope_booster*(30*fov*(1-(fov-3)/100)*(500/origin_distance)) or scope_booster*17*fov
+
+	if draw_fov_gradient:GetValue() then
+		drawGradientCircle(screen_width/2, screen_height/2, radius, {draw_fov_color:GetValue()}, {draw_fov_color2:GetValue()})
+	else
+		draw.Color(draw_fov_color:GetValue())
+		draw.OutlinedCircle(screen_width/2, screen_height/2, radius)
+	end
+
+end
+
+local function drawFov3D()
+    local local_entity = entities.GetLocalPawn()
+	if not local_entity or not local_entity:IsAlive() or not draw_fov_3d_enable:GetValue() then
+		return
+	end
+
+	local FIRST_HITBOX = 0                                      --head hitbox
+    local LAST_HITBOX = 7                                       --right leg hitbox
+
+    for _, entity in pairs(entities.FindByClass("C_CSPlayerPawn")) do
+    	--check entity for valid
+        if entity:GetTeamNumber() ~= local_entity:GetTeamNumber() and entity:GetIndex() ~= local_entity:GetIndex() and entity:IsPlayer() and entity:IsAlive() then
+            local distance_to_closest_hitbox = math.huge
+            local closest_hitbox_x, closest_hitbox_y = nil, nil
+
+			for hitbox = FIRST_HITBOX, LAST_HITBOX do
+            	local hitbox_on_screen = {client.WorldToScreen(entity:GetHitboxPosition(hitbox))}
+
+            	if hitbox_on_screen[1] and hitbox_on_screen[2] then
+             	    local distance_to_hitbox = vector.Distance(screen_width / 2, screen_height / 2, 0, hitbox_on_screen[1], hitbox_on_screen[2], 0)
+
+            	    if distance_to_hitbox < distance_to_closest_hitbox then
+                	    distance_to_closest_hitbox = distance_to_hitbox
+                	    closest_hitbox_x, closest_hitbox_y = hitbox_on_screen[1], hitbox_on_screen[2]
+                    end
+				end
+            end
+
+            if closest_hitbox_x and closest_hitbox_y then
+                local local_abs = local_entity:GetAbsOrigin()
+                local entity_abs = entity:GetAbsOrigin()
+                local distance_to_entity = vector.Distance(entity_abs.x, entity_abs.y, entity_abs.z, local_abs.x, local_abs.y, local_abs.z)
+
+                local fov = gui.GetValue("lbot.master") and gui.GetValue("lbot.weapon.target." .. getWeaponGroup() .. ".maxfov") or gui.GetValue("rbot.fov")
+                local scope_booster = entities.GetLocalPawn():GetFieldInt("m_bIsScoped") == 0 and 1 or 2
+                local radius = gui.GetValue("lbot.master") and scope_booster*(30*fov*(1-(fov-3)/100)*(500/distance_to_entity)) or scope_booster*17*fov
+
+                if draw_fov_gradient:GetValue() then
+		            drawGradientCircle(closest_hitbox_x, closest_hitbox_y, radius, {draw_fov_color:GetValue()}, {draw_fov_color2:GetValue()})
+	            else
+		            draw.Color(draw_fov_color:GetValue())
+		            draw.OutlinedCircle(closest_hitbox_x, closest_hitbox_y, radius)
+	            end
+	        end
+        end
+    end
+end
+
+callbacks.Register("Draw", function()
+	drawFov()
+  drawFov3D()
+end)
