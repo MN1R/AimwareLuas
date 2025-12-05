@@ -1,0 +1,353 @@
+--UI
+local misc_features_tab = gui.Reference("Miscellaneous", "Features");
+
+local keybinds_enable = gui.Checkbox(misc_features_tab, "keybinds_enable", "Keybinds", true);
+local keybinds_color_background = gui.ColorPicker(keybinds_enable, "keybinds_color_background", "", 120, 120, 120, 40);
+local keybinds_color_text = gui.ColorPicker(keybinds_enable, "keybinds_color_text", "", 255, 255, 255, 255);
+local keybinds_color_line = gui.ColorPicker(keybinds_enable, "keybinds_color_line", "", 255, 255, 255, 255);
+local keybinds_reset_states = gui.Checkbox(misc_features_tab, "keybinds_reset_states", "Reset States", true);
+keybinds_reset_states:SetDescription("Disable all binds and click that checkbox to reset keybinds data")
+
+local screen_width, screen_height = draw.GetScreenSize();
+local keybinds_position_x = gui.Slider(misc_features_tab, "keybinds_position_x", "Keybinds Position X", 500, 0, screen_width, 1)
+local keybinds_position_y = gui.Slider(misc_features_tab, "keybinds_position_y", "Keybinds Position Y", 500, 0, screen_height, 1)
+keybinds_position_x:SetInvisible(true)
+keybinds_position_y:SetInvisible(true)
+
+--returns the weapon group for legitbot/ragebot
+local function getWeaponGroup()
+	local active = gui.GetValue("lbot.aim.enable") and gui.GetValue("lbot.weapon.target") or gui.GetValue("rbot.accuracy")
+	local group_names = {
+        ["\"Shared\""] =            "shared";
+		["\"Zeus\""] =              "zeus";
+		["\"Pistol\""] =            "pistol";
+		["\"Heavy Pistol\""] =      "hpistol";
+		["\"Submachine Gun\""] =    "smg";
+		["\"Rifle\""] =             "rifle";
+		["\"Shotgun\""] =           "shotgun";
+		["\"Scout\""] =             "scout";
+		["\"Auto Sniper\""] =       "asniper";
+		["\"Sniper\""] =            "sniper";
+		["\"Light Machine Gun\""] = "lmg";
+    };
+
+	return group_names[active]
+end
+
+--filling all the states
+local states = nil
+local states_cache = nil
+local weapon_cache = nil
+local function getValues()
+    local weapon_group_names = {"shared", "zeus", "pistol", "hpistol", "smg", "rifle", "shotgun", "scout", "asniper", "sniper", "lmg"}
+    local weapon_group = getWeaponGroup()
+    local rbot = gui.GetValue("rbot.enable")
+    local lbot = gui.GetValue("lbot.aim.enable")
+    local menu = gui.Reference("Menu")
+
+    --fill the states if they was not defined
+    if not states then
+        states = {}
+        
+        --common states
+        states["Menu"] = {menu:IsActive(), 0}
+        states["Aimbot"] = {(lbot and gui.GetValue("lbot.aim.key") ~= 0 and input.IsButtonDown(gui.GetValue("lbot.aim.key"))), 0}
+        states["Triggerbot"] = {lbot and gui.GetValue("lbot.trg.enable") and gui.GetValue("lbot.trg.key") ~= 0 and input.IsButtonDown(gui.GetValue("lbot.trg.key")), 0}
+        states["Automatic Fire"] = {lbot and gui.GetValue("lbot.trg.enable") and gui.GetValue("lbot.trg.autofire"), 0}
+        states["Field Of View"] = {rbot and gui.GetValue("rbot.fov"), 0}
+        states["Fake Duck"] = {rbot and gui.GetValue("rbot.duckpeek") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.duckpeek")), 0}
+        states["Slow Walk"] = {rbot and gui.GetValue("misc.slowkey") ~= 0 and input.IsButtonDown(gui.GetValue("misc.slowkey")), 0}
+        states["Automatic peek"] = {rbot and gui.GetValue("rbot.autopeek.peekkey") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.autopeek.peekkey")), 0}
+        states["Third Person"] = {gui.GetValue("world.thirdperson"), 0}
+
+        --weapon based values
+        states["Automatic Wall"] = {gui.GetValue("rbot.accuracy." .. weapon_group .. ".autowall"), 0}
+        states["Adaptive Damage"] = {gui.GetValue("rbot.accuracy." .. weapon_group .. ".adaptivedamage"), 0}
+        states["Minimal Damage Override"] = {gui.GetValue("rbot.accuracy." .. weapon_group .. ".mindamage"), 0}
+        states["Hit Chance Override"] = {gui.GetValue("rbot.accuracy." .. weapon_group .. ".hitchance"), 0}
+        states["Through Wall"] = {lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group .. ".autowall"), 0}
+        states["Through Smoke"] = {lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group .. ".smoke"), 0}
+
+    --if was defined
+    else
+        states["Menu"][1] = menu:IsActive()
+        states["Aimbot"][1] = (lbot and gui.GetValue("lbot.aim.key") ~= 0 and input.IsButtonDown(gui.GetValue("lbot.aim.key")))
+        states["Triggerbot"][1] = lbot and gui.GetValue("lbot.trg.enable") and gui.GetValue("lbot.trg.key") ~= 0 and input.IsButtonDown(gui.GetValue("lbot.trg.key"))
+        states["Automatic Fire"][1] = lbot and gui.GetValue("lbot.trg.enable") and gui.GetValue("lbot.trg.autofire")
+        states["Field Of View"][1] = rbot and gui.GetValue("rbot.fov")
+        states["Fake Duck"][1] = rbot and gui.GetValue("rbot.duckpeek") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.duckpeek"))
+        states["Slow Walk"][1] = rbot and gui.GetValue("misc.slowkey") ~= 0 and input.IsButtonDown(gui.GetValue("misc.slowkey"))
+        states["Automatic peek"][1] = rbot and gui.GetValue("rbot.autopeek.peekkey") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.autopeek.peekkey"))
+        states["Third Person"][1] = gui.GetValue("world.thirdperson")
+
+        --legitbot weapon based values
+        states["Automatic Wall"][1] = gui.GetValue("rbot.accuracy." .. weapon_group .. ".autowall")
+        states["Adaptive Damage"][1] = gui.GetValue("rbot.accuracy." .. weapon_group .. ".adaptivedamage")
+        states["Minimal Damage Override"][1] = gui.GetValue("rbot.accuracy." .. weapon_group .. ".mindamage")
+        states["Hit Chance Override"][1] = gui.GetValue("rbot.accuracy." .. weapon_group .. ".hitchance")
+        states["Through Wall"][1] = lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group .. ".autowall")
+        states["Through Smoke"][1] = lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group .. ".smoke")
+    end
+
+    --filling the caches
+    if not states_cache or not weapon_cache or keybinds_reset_states:GetValue() then
+        --common cache
+        states_cache = {}
+
+        for names, value in pairs(states) do
+            states_cache[names] = {value[1], value[2]}
+        end
+
+        --menu must shows only when enabled therefore cache = false
+        states_cache["Menu"] = {false, 0}
+
+        --weapon based cache
+        weapon_cache = {}
+        weapon_cache["Minimal Damage Override"] = {}
+        weapon_cache["Hit Chance Override"] = {}
+        weapon_cache["Automatic Wall"] = {}
+        weapon_cache["Adaptive Damage"] = {}
+        weapon_cache["Through Wall"] = {}
+        weapon_cache["Through Smoke"] = {}
+
+        for i = 1, #weapon_group_names do
+            weapon_cache["Minimal Damage Override"][weapon_group_names[i]] = gui.GetValue("rbot.accuracy." .. weapon_group_names[i] .. ".mindamage")
+            weapon_cache["Hit Chance Override"][weapon_group_names[i]] = gui.GetValue("rbot.accuracy." .. weapon_group_names[i] .. ".hitchance")
+            weapon_cache["Automatic Wall"][weapon_group_names[i]] = gui.GetValue("rbot.accuracy." .. weapon_group_names[i] .. ".autowall")
+            weapon_cache["Adaptive Damage"][weapon_group_names[i]] = gui.GetValue("rbot.accuracy." .. weapon_group_names[i] .. ".adaptivedamage")
+            weapon_cache["Through Wall"][weapon_group_names[i]] = lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group_names[i] .. ".autowall")
+            weapon_cache["Through Smoke"][weapon_group_names[i]] = lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group_names[i] .. ".smoke")
+        end
+
+        keybinds_reset_states:SetValue(false)
+    end
+end
+
+--keybinds animation system
+local last_frame = common.Time()
+local fps = 1
+local function animateKeybinds()
+    local frame = common.Time()
+    fps = 1 / (frame-last_frame)
+    last_frame = frame
+
+    local TEXT_DISTANCE = 15
+    local ANIMATION_TIME = 100/fps
+    local TEXT_ANIMATION_SPEED = 0.75
+    local weapon_group = getWeaponGroup()
+
+    for name, value in pairs(states) do
+
+        --checking for weapon base states if current state is not equal to the cached state then start animate it
+        if name ~= "Through Wall" and name ~= "Through Smoke" and name ~= "Minimal Damage Override"
+        and name ~= "Hit Chance Override" and name ~= "Automatic Wall" and name ~= "Adaptive Damage" then
+
+            --check and animate
+            if states_cache[name][1] ~= value[1] then
+                if states[name][2] + TEXT_ANIMATION_SPEED*ANIMATION_TIME < TEXT_DISTANCE then
+                    states[name][2] = states[name][2] + TEXT_ANIMATION_SPEED*ANIMATION_TIME
+                else
+                    states[name][2] = TEXT_DISTANCE
+                end
+            else
+                if states[name][2] - TEXT_ANIMATION_SPEED*ANIMATION_TIME > 0 then
+                    states[name][2] = states[name][2] - TEXT_ANIMATION_SPEED*ANIMATION_TIME
+                else
+                    states[name][2] = 0
+                end
+            end
+
+        --weapon based states
+         else
+
+            --check and animate
+            if weapon_cache[name][weapon_group] ~= value[1] then
+                if states[name][2] + TEXT_ANIMATION_SPEED*ANIMATION_TIME < TEXT_DISTANCE then
+                    states[name][2] = states[name][2] + TEXT_ANIMATION_SPEED*ANIMATION_TIME
+                else
+                    states[name][2] = TEXT_DISTANCE
+                end
+            else
+                if states[name][2] - TEXT_ANIMATION_SPEED*ANIMATION_TIME > 0 then
+                    states[name][2] = states[name][2] - TEXT_ANIMATION_SPEED*ANIMATION_TIME
+                else
+                    states[name][2] = 0
+                end
+            end
+        end
+    end
+end
+
+--format the states values
+local function formatValue(value)
+    if value == "true" then return "On" end
+    if value == "false" then return "Off" end
+
+    return value
+end
+
+--draws the vertical to down gradient line
+local function drawGradientLine(pos_x, pos_y, length, width, color)
+    local alpha_step = color[4] / length
+    for i = 0, length-1 do
+        draw.Color(color[1], color[2], color[3], color[4] - alpha_step*i)
+        draw.FilledRect(pos_x, pos_y + i, pos_x + width, pos_y + i + 1)
+    end
+end
+
+local visuals_x_distance, visuals_y_distance = math.huge, math.huge
+local function controleVisualsPostion()
+
+    --all gui, that has positions of visuals
+    local BORDER = 5
+    local BORDER_Y = 15
+    local pos_x = keybinds_position_x:GetValue() - BORDER
+    local pos_y = keybinds_position_y:GetValue() - BORDER_Y
+
+    --getting menu position
+    local menu = gui.Reference("Menu")
+    local menu_pos = {menu:GetValue()}
+    local mouse_pos = {input.GetMousePos()}
+
+    --keybinds sizes
+    local KEYBINDS_HEADER_SIZE = 30
+    local KEYBINDS_SIZE = 240
+
+    --collecting delta data if mouse 1 is not pressed
+    if not input.IsButtonDown(1) then
+
+        --getting distance between visuals and mouse
+        visuals_x_distance = mouse_pos[1] - pos_x
+        visuals_y_distance = mouse_pos[2] - pos_y
+    end
+
+    --setting positions
+    if input.IsButtonDown(1) and (visuals_x_distance > 0 and visuals_x_distance <= KEYBINDS_SIZE) and
+        (visuals_y_distance > 0 and visuals_y_distance <= KEYBINDS_HEADER_SIZE) and menu:IsActive() then
+
+        keybinds_position_x:SetValue(mouse_pos[1] - visuals_x_distance + BORDER)
+        keybinds_position_y:SetValue(mouse_pos[2] - visuals_y_distance + BORDER_Y)
+    end
+end
+
+--draw all keybinds stuff
+local function drawKeybinds()
+
+    --fonts
+    local font = nil
+    local font_background = nil
+    if not font then
+        font = draw.CreateFont("Verdana", 12, 900)
+        font_background = draw.CreateFont("Verdana", 12, 900, true)
+    end
+
+    --animation
+    local ANIMATION_TIME = 100/fps
+    local TEXT_ANIMATION_SPEED = 0.01
+
+    --get max text sizes and sum of animations
+    local sum_of_animations = 0
+    local max_size_x, max_size_y = 0, 0
+    local max_animation = 0
+    for name, value in pairs(states) do
+        if value[2] ~= 0 then
+            local formated_value = formatValue(tostring(value[1]))
+            local animation_value = value[2]
+
+            --get the max text sizes and animate x
+            draw.SetFont(font)
+            local text_size_x, text_size_y = draw.GetTextSize(formated_value)
+            while text_size_x > max_size_x do max_size_x = max_size_x + TEXT_ANIMATION_SPEED*ANIMATION_TIME end
+            if text_size_y > max_size_y then max_size_y = text_size_y end
+
+            --get the max animation_value
+            if animation_value > max_animation then max_animation = animation_value end
+
+            --get animation sum
+            sum_of_animations = sum_of_animations + animation_value
+        end
+    end
+
+    --position
+    local pos_x = keybinds_position_x:GetValue()
+    local pos_y = keybinds_position_y:GetValue()
+
+    --size constants
+    local TEXT_DISTANCE = 15
+    local DISTANCE_TO_VALUE = 200
+    local BORDER = 5
+    local BORDER_Y = 15
+    local LINE_SIZE = 2
+
+    --draw background
+    local color = {keybinds_color_background:GetValue()}
+    local alpha = sum_of_animations >= 15 and color[4] or color[4]/TEXT_DISTANCE*sum_of_animations
+    draw.Color(color[1], color[2], color[3], alpha)
+    draw.FilledRect(pos_x - BORDER, pos_y - BORDER_Y,
+                    pos_x + DISTANCE_TO_VALUE + max_size_x + BORDER, pos_y + sum_of_animations + max_size_y + max_animation)
+
+    --draw lines from left and right to center
+    color = {keybinds_color_line:GetValue()}
+    local center = pos_x - BORDER + ((pos_x + DISTANCE_TO_VALUE + max_size_x + BORDER) - (pos_x - BORDER))/2    local right_side = pos_x + DISTANCE_TO_VALUE + max_size_x + BORDER
+    local line_animation = sum_of_animations >= 15 and 1 or 1*sum_of_animations/15
+    local line_length = line_animation*(center - (pos_x - BORDER))
+    local alpha = sum_of_animations >= 15 and color[4] or color[4]/TEXT_DISTANCE*sum_of_animations
+
+    draw.Color(color[1], color[2], color[3], alpha)
+    draw.FilledRect(pos_x - BORDER, pos_y - LINE_SIZE/2 - BORDER_Y, pos_x - BORDER + line_length , pos_y - BORDER_Y + LINE_SIZE/2)
+    draw.FilledRect(right_side, pos_y - LINE_SIZE/2 - BORDER_Y, right_side - line_length, pos_y - BORDER_Y + LINE_SIZE/2)
+
+    --draw side gradient lines
+    color = {color[1], color[2], color[3], alpha}
+    drawGradientLine(pos_x - BORDER - LINE_SIZE/2, pos_y - LINE_SIZE/2 - BORDER_Y, sum_of_animations + max_size_y + max_animation, LINE_SIZE, color)
+    drawGradientLine(pos_x + DISTANCE_TO_VALUE + max_size_x + BORDER - LINE_SIZE/2, pos_y - LINE_SIZE/2 - BORDER_Y, sum_of_animations + max_size_y + max_animation, LINE_SIZE, color)
+
+    --draw keybinds text
+    color = {keybinds_color_text:GetValue()}
+    draw.SetFont(font_background)
+    local keybinds_text_size_x, keybinds_text_size_y = draw.GetTextSize("keybinds")
+
+    draw.SetFont(font_background)
+    draw.Color(0, 0, 0, alpha)
+    draw.Text(center - keybinds_text_size_x/2, pos_y - BORDER_Y/2 + keybinds_text_size_y/2, "keybinds")
+    draw.SetFont(font)
+    draw.Color(color[1], color[2], color[3], alpha)
+    draw.Text(center - keybinds_text_size_x/2, pos_y - BORDER_Y/2 + keybinds_text_size_y/2, "keybinds")
+
+    --draw text if it has animation_value
+    color = {keybinds_color_text:GetValue()}
+    sum_of_animations = 0
+    for name, value in pairs(states) do
+        if value[2] ~= 0 then
+            local formated_value = formatValue(tostring(value[1]))
+            local animation_value = value[2]
+            
+            --get sum of animations for current text state
+            sum_of_animations = sum_of_animations + animation_value
+
+            --draw text
+            draw.SetFont(font_background)
+            draw.Color(0, 0, 0, color[4]/TEXT_DISTANCE*animation_value)
+            draw.Text(pos_x, pos_y + sum_of_animations, name)
+            draw.Text(pos_x + DISTANCE_TO_VALUE, pos_y + sum_of_animations, formated_value)
+            draw.SetFont(font)
+            draw.Color(color[1], color[2], color[3], color[4]/TEXT_DISTANCE*animation_value)
+            draw.Text(pos_x, pos_y + sum_of_animations, name)
+            draw.Text(pos_x + DISTANCE_TO_VALUE, pos_y + sum_of_animations, formated_value)
+        end
+    end
+end
+
+callbacks.Register("Draw", function()
+    if keybinds_enable:GetValue() then
+        local local_entity = entities.GetLocalPawn()
+
+        getValues()
+        animateKeybinds()
+        controleVisualsPostion()
+
+        if (local_entity and local_entity:IsAlive()) or states["Menu"][2] > 0 then
+            drawKeybinds()
+        end
+    end
+end)
