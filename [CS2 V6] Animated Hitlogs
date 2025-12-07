@@ -1,0 +1,175 @@
+--UI
+local misc_features_tab = gui.Reference("Miscellaneous", "Features");
+
+local hitlogs_enable = gui.Checkbox(misc_features_tab, "hitlogs_enable", "Hitlogs Enable", true);
+local hitlogs_color_background = gui.ColorPicker(hitlogs_enable, "hitlogs_color_background", "", 20, 20, 20, 200);
+local hitlogs_color_text = gui.ColorPicker(hitlogs_enable, "hitlogs_color_text", "", 255, 255, 255, 255);
+local hitlogs_color_line = gui.ColorPicker(hitlogs_enable, "hitlogs_color_line", "", 255, 255, 255, 255);
+
+local screen_width, screen_height = draw.GetScreenSize();
+local hitlogs_position_x = gui.Slider(misc_features_tab, "hitlogs_position_x", "Hitlogs Position X", 10, 0, screen_width, 1)
+local hitlogs_position_y = gui.Slider(misc_features_tab, "hitlogs_position_y", "Hitlogs Position Y", 10, 0, screen_height, 1)
+
+local hits = {}
+local miss = false
+
+client.AllowListener("player_hurt")
+client.AllowListener("weapon_fire")
+client.AllowListener("round_prestart")
+local function getLogs(event)
+    local local_entity = entities.GetLocalPawn()
+    if not local_entity or not local_entity:IsAlive() then return end
+
+    if event:GetName() == "weapon_fire" then
+        local user = entities.GetByIndex(event:GetInt("userid") + 1):GetFieldEntity("m_hPawn")
+
+        if user:GetIndex() == local_entity:GetIndex() and user:GetTeamNumber() == local_entity:GetTeamNumber() then
+            miss = true
+        end
+    end
+
+    if event:GetName() == "player_hurt" then
+        local victim = entities.GetByIndex(event:GetInt("userid") + 1):GetFieldEntity("m_hPawn")
+        local attacker = entities.GetByIndex(event:GetInt("attacker") + 1):GetFieldEntity("m_hPawn")
+
+        if victim ~= attacker and victim:IsPlayer() and attacker:IsPlayer() and
+        attacker:GetIndex() == local_entity:GetIndex() and attacker:GetTeamNumber() == local_entity:GetTeamNumber() then
+            miss = false
+            
+            local health_left = event:GetInt("health")
+            local dmg_health = event:GetInt("dmg_health")
+
+            local hitgroups = {"head", "chest", "stomach", "left arm", "right arm", "left leg", "right leg"}
+            local hitgroup = hitgroups[event:GetInt("hitgroup")]
+
+            local text = ""
+            if health_left ~= 0 then
+                text = "Hit" .. " " .. victim:GetName() .. " in the " .. hitgroup .. " for " .. dmg_health ..
+                 " (" .. health_left .. " health remaining)"
+            else
+                text = "Killed" .. " " .. victim:GetName() .. " in the " .. hitgroup
+            end
+
+            local FULL_DURATION = 5
+            hits[#hits + 1] = {text, common.Time() + FULL_DURATION}
+        end
+    end
+
+    if event:GetName() == "round_prestart" then
+        hits = {}
+    end
+end
+callbacks.Register("FireGameEvent", getLogs)
+
+local function detectMiss()
+    if miss and not input.IsButtonDown(1) and gui.GetValue("rbot.enable") then
+        local FULL_DURATION = 5
+        hits[#hits + 1] = {"Missed shot due to (?)", common.Time() + FULL_DURATION}
+    
+        miss = false
+    end
+end
+callbacks.Register("Draw", detectMiss)
+
+local function drawGradientLine(pos_x, pos_y, length, width, color)
+    local alpha_step = color[4] / length
+    for i = 0, length-1 do
+        draw.Color(color[1], color[2], color[3], color[4] - alpha_step*i)
+        draw.FilledRect(pos_x, pos_y + i, pos_x + width, pos_y + i + 1)
+    end
+end
+
+local font = nil
+local font_background = nil
+local function drawLogs()
+    if not hitlogs_enable:GetValue() then
+        hits = {}
+        return
+    end
+
+    local time = common.Time()
+
+    local FONT_SIZE = 12
+    if not font then
+        font = draw.CreateFont("Verdana", FONT_SIZE, 900)
+        font_background = draw.CreateFont("Verdana", FONT_SIZE, 900, true)
+    end
+
+    local color_text = {hitlogs_color_text:GetValue()}
+    local color_background = {hitlogs_color_background:GetValue()}
+    local color_line = {hitlogs_color_line:GetValue()}
+
+    local animation_sum = 0
+    local to_remove = 0
+    for hit = 1, #hits do
+        if hits[hit] then
+            local text = hits[hit][1]
+            local duration = hits[hit][2] - time
+
+            if duration >= 0 then
+                local animation_scaler = 1
+                local FULL_DURATION = 5
+                local ANIMATION_TIME = 0.5
+                if duration > FULL_DURATION-ANIMATION_TIME then
+                    animation_scaler = (FULL_DURATION - duration) * (1/ANIMATION_TIME)
+                elseif duration < ANIMATION_TIME then
+                    animation_scaler = duration * (1/ANIMATION_TIME)
+                end
+
+                local BETWEEN_HITS_DISTANCE = 25
+                animation_sum = animation_sum + BETWEEN_HITS_DISTANCE*animation_scaler
+
+                local x_pos = hitlogs_position_x:GetValue()
+                local y_pos = hitlogs_position_y:GetValue() + animation_sum - BETWEEN_HITS_DISTANCE
+
+
+                draw.SetFont(font_background)
+                local text_size_x, text_size_y = draw.GetTextSize(text)
+
+                local BORDER = 5
+                draw.Color(color_background[1], color_background[2], color_background[3], animation_scaler*color_background[4])
+                draw.FilledRect(x_pos-BORDER, y_pos-BORDER, x_pos+text_size_x+BORDER, y_pos+text_size_y+BORDER)
+
+                local center = x_pos+text_size_x/2
+                local length = animation_scaler*(center-(x_pos-BORDER))
+                local LINE_HEIGHT = 2
+                draw.Color(color_line[1], color_line[2], color_line[3], animation_scaler*color_line[4])
+                draw.FilledRect(x_pos-BORDER, y_pos-BORDER-LINE_HEIGHT/2, x_pos-BORDER+length, y_pos-BORDER+LINE_HEIGHT/2)
+                draw.FilledRect(x_pos+text_size_x+BORDER, y_pos-BORDER-LINE_HEIGHT/2, x_pos+text_size_x+BORDER-length, y_pos-BORDER+LINE_HEIGHT/2)
+
+                drawGradientLine(x_pos-BORDER, y_pos-BORDER, animation_scaler*(text_size_y+2*BORDER), LINE_HEIGHT,
+                    {color_line[1], color_line[2], color_line[3], animation_scaler*color_line[4]})
+                drawGradientLine(x_pos+text_size_x+BORDER-LINE_HEIGHT, y_pos-BORDER, animation_scaler*(text_size_y+2*BORDER), LINE_HEIGHT,
+                    {color_line[1], color_line[2], color_line[3], animation_scaler*color_line[4]})
+
+                draw.Color(0, 0, 0, animation_scaler*color_text[4])
+                draw.SetFont(font_background)
+                draw.Text(x_pos, y_pos, text)
+                draw.Color(color_text[1], color_text[2], color_text[3], animation_scaler*color_text[4])
+                draw.SetFont(font)
+                draw.Text(x_pos, y_pos, text)
+            else
+                to_remove = to_remove + 1
+            end
+        end
+    end
+    
+    --does not destruct the table during the iteration like table.remove and does not break the animation
+    if to_remove > 0 then
+        local cleared_hits = {}
+        for i = to_remove+1, #hits do
+            cleared_hits[#cleared_hits + 1] = hits[i]
+        end
+
+        hits = {}
+        for i = 1, #cleared_hits do
+            hits[#hits + 1] = cleared_hits[i]
+        end
+    end
+
+    local local_entity = entities.GetLocalPawn()
+    if not local_entity then
+        hits = {}
+    end
+end
+callbacks.Register("Draw", drawLogs)
