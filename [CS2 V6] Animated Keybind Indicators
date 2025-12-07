@@ -231,11 +231,11 @@ local function controleVisualsPostion()
 end
 
 --draw all keybinds stuff
+local font = nil
+local font_background = nil
 local function drawKeybinds()
 
     --fonts
-    local font = nil
-    local font_background = nil
     if not font then
         font = draw.CreateFont("Verdana", 12, 900)
         font_background = draw.CreateFont("Verdana", 12, 900, true)
