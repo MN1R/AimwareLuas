@@ -1,0 +1,873 @@
+--GENERAL SCOPE VARIABLES
+local buy_bot_items = {
+                "awp", "ssg08", "g3sg1", "scar20",
+                --"ak47", "m4a1", "m4a1_silencer", "famas", "galilar", "aug", "sg556",
+                --"mac10", "mp9", "mp7", "ump45", "p90", "bizon", "mp5sd",
+                --"nova", "xm1014", "mag7", "sawedoff",
+                --"m249", "negev",
+                "deagle", "revolver", "usp_silencer", "glock", "p250", "taser",
+                "hegrenade", "molotov", "flashbang", "smokegrenade", "decoy", "incgrenade",
+                "kevlar", "vesthelm", "defuser"
+}
+
+local weapon_group_names = {
+        ["\"Shared\""] =            "shared";
+        ["\"Zeus\""] =            "zeus";
+		["\"Pistol\""] =            "pistol";
+		["\"Heavy Pistol\""] =      "hpistol";
+		["\"Submachine Gun\""] =    "smg";
+		["\"Rifle\""] =             "rifle";
+		["\"Shotgun\""] =           "shotgun";
+		["\"Scout\""] =             "scout";
+		["\"Auto Sniper\""] =       "asniper";
+		["\"Sniper\""] =            "sniper";
+		["\"Light Machine Gun\""] = "lmg";
+};
+
+
+--return the weapon_group
+local function getWeaponGroup()
+	local active = gui.GetValue("lbot.weapon.target")
+
+	return weapon_group_names[active]
+end
+
+
+--uses everywhere, therefore lets define it
+local local_entity = nil
+local weapon_group = "shared"
+local function defineVariables()
+    local_entity = entities.GetLocalPawn()
+    weapon_group = getWeaponGroup()
+end
+
+
+--UI
+local ui = {legit = {},  misc = {}, visuals = {}}
+local screen_width, screen_height = nil, nil
+local function UI()
+
+    --create ui
+    if not screen_height or not screen_width then
+
+        screen_width, screen_height = draw.GetScreenSize()
+
+        local WINDOW_SIZE_X, WINDOW_SIZE_Y = 500, 300
+        ui.window = gui.Window("advanced_aimware", "Advanced Aimware", screen_width/3, screen_height/3,
+                                                                      WINDOW_SIZE_X, WINDOW_SIZE_Y);
+
+        --general
+        local BORDER = 10
+        local POS_Y_LEFT = 95+2*BORDER
+        local POS_X_RIGHT = 2*BORDER+(WINDOW_SIZE_X-3*BORDER)/2
+        ui.tab_controller = gui.Groupbox(ui.window, "Group Controller", BORDER, BORDER, (WINDOW_SIZE_X-3*BORDER)/2, (WINDOW_SIZE_Y-3*BORDER)/2)
+        ui.controller = gui.Combobox(ui.tab_controller, "controller", "Select Group", "Legit", "Misc", "Visuals")
+
+        ui.legit.tab_legit_left = gui.Groupbox(ui.window, "Legitbot I", BORDER, POS_Y_LEFT, (WINDOW_SIZE_X-3*BORDER)/2, (WINDOW_SIZE_Y-3*BORDER)/2)
+        ui.legit.tab_legit_right = gui.Groupbox(ui.window, "Legitbot II", POS_X_RIGHT, BORDER, (WINDOW_SIZE_X-3*BORDER)/2, (WINDOW_SIZE_Y-3*BORDER)/2)
+
+        ui.misc.tab_misc_left = gui.Groupbox(ui.window, "Misc I", BORDER, POS_Y_LEFT, (WINDOW_SIZE_X-3*BORDER)/2, (WINDOW_SIZE_Y-3*BORDER)/2)
+        ui.misc.tab_misc_right = gui.Groupbox(ui.window, "Misc II", POS_X_RIGHT, BORDER, (WINDOW_SIZE_X-3*BORDER)/2, (WINDOW_SIZE_Y-3*BORDER)/2)
+
+        ui.visuals.tab_visuals_left = gui.Groupbox(ui.window, "Visuals I", BORDER, POS_Y_LEFT, (WINDOW_SIZE_X-3*BORDER)/2, (WINDOW_SIZE_Y-3*BORDER)/2)
+        ui.visuals.tab_visuals_right = gui.Groupbox(ui.window, "Visuals II", POS_X_RIGHT, BORDER, (WINDOW_SIZE_X-3*BORDER)/2, (WINDOW_SIZE_Y-3*BORDER)/2)
+
+        ui.legit.enable = gui.Checkbox(ui.tab_controller, "legit_enable", "Enable Legitbot Functions", true)
+        ui.misc.enable = gui.Checkbox(ui.tab_controller, "misc_enable", "Enable Misc Functions", true)
+        ui.visuals.enable = gui.Checkbox(ui.tab_controller, "visuals_enable", "Enable Visual Functions", true)
+
+        --legit
+        ui.legit.flash_check_enable = gui.Checkbox(ui.legit.tab_legit_left, "flash_check_enable", "Enable Flash Check", true)
+        ui.legit.jump_check_enable = gui.Checkbox(ui.legit.tab_legit_left, "jump_check_enable", "Enable Jump Check", true)
+        ui.legit.zoom_check_enable = gui.Checkbox(ui.legit.tab_legit_left, "zoom_check_enable", "Enable Zoom Check", true)
+        ui.legit.team_check_enable = gui.Checkbox(ui.legit.tab_legit_left, "team_check_enable", "Enable Team Check", true)
+
+        ui.legit.auto_delay_enable = gui.Checkbox(ui.legit.tab_legit_right, "auto_delay_enable", "Enable Auto First Shot Delay", true)
+
+        ui.legit.humanize_triggerbot_enable = gui.Checkbox(ui.legit.tab_legit_right, "humanize_triggerbot_delay_enable", "Enable Triggerbot Humanization", true)
+        ui.legit.humanize_triggerbot_max_delay = gui.Slider(ui.legit.tab_legit_right, "humanize_triggerbot_max_delay", "Max Delay", 50, 0, 500, 5)
+
+        for name, short_name in pairs(weapon_group_names) do
+            ui.legit[short_name .. "_fov1"] = gui.Slider(ui.legit.tab_legit_right, short_name .. "_fov1", short_name .. " FOV I",
+                gui.GetValue("lbot.weapon.target." .. short_name .. ".maxfov"), 0, 30, 0.1)
+            ui.legit[short_name .. "_fov2"] =  gui.Slider(ui.legit.tab_legit_right, short_name .. "_fov2", short_name .. " FOV II",
+                gui.GetValue("lbot.weapon.target." .. short_name .. ".maxfov"), 0, 30, 0.1)
+            ui.legit[short_name .. "_smooth1"] =  gui.Slider(ui.legit.tab_legit_right, short_name .. "_smooth1", short_name .. " Smooth I",
+                gui.GetValue("lbot.weapon.aim." .. short_name .. ".smooth"), 0, 30, 0.25)
+            ui.legit[short_name .. "_smooth2"] =  gui.Slider(ui.legit.tab_legit_right, short_name .. "_smooth2", short_name .. " Smooth II",
+                gui.GetValue("lbot.weapon.aim." .. short_name .. ".smooth"), 0, 30, 0.25)
+        end
+
+        --misc
+        ui.misc.safe_mode_enable = gui.Checkbox(ui.misc.tab_misc_left, "safe_mode_enable", "Enable Safe Mode", true)
+
+        ui.misc.animated_thirperson_enable = gui.Checkbox(ui.misc.tab_misc_left, "animated_thirperson_enable", "Enable Animated Third Person", false)
+        ui.misc.animated_thirperson_distance = gui.Slider(ui.misc.tab_misc_left, "animated_thirperson_distance", "Distance", 90, 0, 500, 1)
+
+        ui.misc.draw_fov_enable = gui.Checkbox(ui.misc.tab_misc_left, "draw_fov_enable", "Draw FOV", true)
+        ui.misc.draw_fov_color = gui.ColorPicker(ui.misc.draw_fov_enable, "draw_fov_color", "", 55, 255, 55, 255)
+        ui.misc.draw_fov_color_deadzone = gui.ColorPicker(ui.misc.draw_fov_enable, "draw_fov_color_deadzone", "", 255, 55, 55, 255)
+
+        ui.misc.viewmodel_x = gui.Slider(ui.misc.tab_misc_right, "viewmodel_x", "Viewmodel X", client.GetConVar("viewmodel_offset_x"), -2.5, 2.5, 0.1)
+        ui.misc.viewmodel_y = gui.Slider(ui.misc.tab_misc_right, "viewmodel_y", "Viewmodel Y", client.GetConVar("viewmodel_offset_y"), -2, 2, 0.1)
+        ui.misc.viewmodel_z = gui.Slider(ui.misc.tab_misc_right, "viewmodel_z", "Viewmodel Z", client.GetConVar("viewmodel_offset_z"), -2, 2, 0.1)
+
+        ui.misc.buy_bot_enable = gui.Checkbox(ui.misc.tab_misc_right, "buy_bot_enable", "Enable Buy Bot", true)
+        ui.misc.buy_bot = gui.Multibox(ui.misc.tab_misc_right, "Buy Bot")
+
+        for _, item in pairs(buy_bot_items) do
+            ui.misc[item] = gui.Checkbox(ui.misc.buy_bot, "buy_bot_" .. item, item, false)
+        end
+
+        ui.misc.solar_symbol_crosshair_enable = gui.Checkbox(ui.misc.tab_misc_right, "solar_symbol_crosshair_enable", "Enable Solar Symbol Crosshair", true)
+        ui.misc.solar_symbol_crosshair_length = gui.Slider(ui.misc.tab_misc_right, "solar_symbol_crosshair_length", "Length", 10, 2, 100, 1)
+        ui.misc.solar_symbol_crosshair_lines = gui.Slider(ui.misc.tab_misc_right, "solar_symbol_crosshair_lines", "Lines", 8, 4, 8, 2)
+        ui.misc.solar_symbol_crosshair_enable:SetDescription("solar symbol is the symbol of a life and health")
+
+        --visuals
+        ui.visuals.keybinds_enable = gui.Checkbox(ui.visuals.tab_visuals_left, "keybinds_enable", "Enable Keybinds", true)
+        ui.visuals.keybinds_color_background = gui.ColorPicker(ui.visuals.keybinds_enable, "keybinds_color_background", "", 120, 120, 120, 40);
+        ui.visuals.keybinds_color_text = gui.ColorPicker(ui.visuals.keybinds_enable, "keybinds_color_text", "", 255, 255, 255, 255);
+        ui.visuals.keybinds_color_line = gui.ColorPicker(ui.visuals.keybinds_enable, "keybinds_color_line", "", 255, 255, 255, 255);
+        ui.visuals.keybinds_position_x = gui.Slider(ui.visuals.tab_visuals_left, "keybinds_position_x", "Keybinds Position X", 500, 0, screen_width, 1)
+        ui.visuals.keybinds_position_y = gui.Slider(ui.visuals.tab_visuals_left, "keybinds_position_y", "Keybinds Position Y", 500, 0, screen_height, 1)
+
+        ui.visuals.hitlogs_enable = gui.Checkbox(ui.visuals.tab_visuals_left, "hitlogs_enable", "Enable HitLogs", true)
+        ui.visuals.hitlogs_color_background = gui.ColorPicker(ui.visuals.hitlogs_enable, "hitlogs_color_background", "", 120, 120, 120, 40);
+        ui.visuals.hitlogs_color_text = gui.ColorPicker(ui.visuals.hitlogs_enable, "hitlogs_color_background", "", 255, 255, 255, 255);
+        ui.visuals.hitlogs_color_line = gui.ColorPicker(ui.visuals.hitlogs_enable, "hitlogs_color_background", "", 255, 255, 255, 255);
+
+        ui.visuals.gradient_scope_enable = gui.Checkbox(ui.visuals.tab_visuals_left, "gradient_scope_enable", "Enable Gradient Scope", false)
+        ui.visuals.gradient_scope_color = gui.ColorPicker(ui.visuals.gradient_scope_enable, "gradient_scope_color", "", 255, 255, 255, 255);
+        ui.visuals.gradient_scope_length = gui.Slider(ui.visuals.tab_visuals_left, "gradient_scope_length", "Length", 100, 0, screen_height/2, 5)
+
+        ui.visuals.crosshair_wallhack_enable = gui.Checkbox(ui.visuals.tab_visuals_right, "crosshair_wallhack_enable", "Enable Crosshair Wallhack", true)
+        ui.visuals.crosshair_wallhack_color = gui.ColorPicker(ui.visuals.crosshair_wallhack_enable, "crosshair_wallhack_color", "", 255, 200, 0, 255);
+        ui.visuals.crosshair_wallhack_text = gui.Editbox(ui.visuals.tab_visuals_right, "crosshair_wallhack_text", "Information text")
+        ui.visuals.crosshair_wallhack_fov = gui.Slider(ui.visuals.tab_visuals_right, "crosshair_wallhack_fov", "FOV", 5, 0, 30, 0.5)
+        ui.visuals.crosshair_wallhack_position_x = gui.Slider(ui.visuals.tab_visuals_right, "crosshair_wallhack_position_x", "Position X", screen_width/2, 0, screen_width, 1)
+        ui.visuals.crosshair_wallhack_position_y = gui.Slider(ui.visuals.tab_visuals_right, "crosshair_wallhack_position_y", "Position Y", screen_height/4, 0, screen_height, 1)
+        ui.visuals.crosshair_wallhack_text:SetValue("!")
+
+        ui.visuals.crosshair_wallhack_enable:SetDescription("Shows indicator if enemy is nearby the your crosshair")
+
+        --caches
+        ui.enabled_group = 0
+    end
+
+    --controle ui
+    ui.menu = gui.Reference("Menu")
+    ui.window:SetActive(ui.menu:IsActive())
+
+    --multifov visibility
+    for name, short_name in pairs(weapon_group_names) do
+        ui.legit[short_name .. "_fov1"]:SetInvisible(not (short_name == weapon_group))
+        ui.legit[short_name .. "_fov2"]:SetInvisible(not (short_name == weapon_group))
+        ui.legit[short_name .. "_smooth1"]:SetInvisible(not (short_name == weapon_group))
+        ui.legit[short_name .. "_smooth2"]:SetInvisible(not (short_name == weapon_group))
+    end
+
+    --disabled
+    ui.misc.animated_thirperson_distance:SetDisabled(not ui.misc.animated_thirperson_enable:GetValue())
+
+    --disabled in lite
+    local groups = {ui.legit, ui.misc, ui.visuals}
+    for _, tab in pairs(groups) do
+        for _, element in pairs(tab) do
+            element:SetDisabled(true)
+        end
+    end
+
+    --groups visibility
+    ui.legit.enable:SetDisabled(false)
+    ui.misc.enable:SetDisabled(false)
+    ui.visuals.enable:SetDisabled(false)
+    ui.legit.enable:SetInvisible(not (ui.controller:GetValue() == 0))
+    ui.misc.enable:SetInvisible(not (ui.controller:GetValue() == 1))
+    ui.visuals.enable:SetInvisible(not (ui.controller:GetValue() == 2))
+
+    ui.legit.tab_legit_left:SetDisabled(not ui.legit.enable:GetValue())
+    ui.legit.tab_legit_right:SetDisabled(not ui.legit.enable:GetValue())
+    ui.misc.tab_misc_left:SetDisabled(not ui.misc.enable:GetValue())
+    ui.misc.tab_misc_right:SetDisabled(not ui.misc.enable:GetValue())
+    ui.visuals.tab_visuals_left:SetDisabled(not ui.visuals.enable:GetValue())
+    ui.visuals.tab_visuals_right:SetDisabled(not ui.visuals.enable:GetValue())
+
+    ui.legit.tab_legit_left:SetInvisible(not (ui.controller:GetValue() == 0))
+    ui.legit.tab_legit_right:SetInvisible(not (ui.controller:GetValue() == 0))
+    ui.misc.tab_misc_left:SetInvisible(not (ui.controller:GetValue() == 1))
+    ui.misc.tab_misc_right:SetInvisible(not (ui.controller:GetValue() == 1))
+    ui.visuals.tab_visuals_left:SetInvisible(not (ui.controller:GetValue() == 2))
+    ui.visuals.tab_visuals_right:SetInvisible(not (ui.controller:GetValue() == 2))
+
+    --fucntions included in lite version
+    ui.legit.auto_delay_enable:SetDisabled(false)
+
+    ui.misc.animated_thirperson_enable:SetDisabled(false)
+    ui.misc.animated_thirperson_distance:SetDisabled(false)
+    ui.misc.draw_fov_enable:SetDisabled(false)
+    ui.misc.draw_fov_color:SetDisabled(false)
+    ui.misc.draw_fov_color_deadzone:SetDisabled(false)
+
+    ui.visuals.keybinds_enable:SetDisabled(false)
+    ui.visuals.keybinds_color_background:SetDisabled(false)
+    ui.visuals.keybinds_color_text:SetDisabled(false)
+    ui.visuals.keybinds_color_line:SetDisabled(false)
+    ui.visuals.hitlogs_enable:SetDisabled(false)
+    ui.visuals.hitlogs_color_background:SetDisabled(false)
+    ui.visuals.hitlogs_color_text:SetDisabled(false)
+    ui.visuals.hitlogs_color_line:SetDisabled(false)
+
+    --always invis
+    ui.visuals.keybinds_position_x:SetInvisible(true)
+    ui.visuals.keybinds_position_y:SetInvisible(true)
+end
+
+
+--GENERAL
+--better to callback it because it used in many functions
+local entity, origin_distance, crosshair_distance = nil, 0, 0
+local function getClosestToCrosshair()
+    local distance_to_closest_hitbox = math.huge                --giant number
+	local closest_entity = nil
+	if not local_entity or not local_entity:IsAlive() then
+		entity, origin_distance, crosshair_distance = nil, 0, 0
+		return
+	end
+
+
+	local FIRST_HITBOX = 0                                      --head hitbox
+    local LAST_HITBOX = 7                                       --right leg hitbox
+
+
+    for _, entity in pairs(entities.FindByClass("C_CSPlayerPawn")) do
+
+    	--check entity for valid and team check for deathmatch
+    	local valid = entity:GetIndex() ~= local_entity:GetIndex() and entity:IsPlayer() and entity:IsAlive()
+    	if ui.legit.team_check_enable:GetValue() and entity:GetTeamNumber() == local_entity:GetTeamNumber() then
+    	    valid = false
+    	end
+
+    	--defining the closest entity and distance to closest hitbox
+        if valid then
+
+			for hitbox = FIRST_HITBOX, LAST_HITBOX do
+            	local hitbox_on_screen = {client.WorldToScreen(entity:GetHitboxPosition(hitbox))}
+            	local distance_to_hitbox = vector.Distance(screen_width / 2, screen_height / 2, 0, hitbox_on_screen[1], hitbox_on_screen[2], 0)
+
+            	if distance_to_hitbox < distance_to_closest_hitbox then
+                	distance_to_closest_hitbox = distance_to_hitbox
+                	closest_entity = entity
+				end
+            end
+        end
+    end
+
+	if not closest_entity then
+		entity, origin_distance, crosshair_distance = nil, 0, 0
+	end
+
+    if closest_entity then
+        local local_abs = local_entity:GetAbsOrigin()
+        local entity_abs = closest_entity:GetAbsOrigin()
+        local distance_to_entity = vector.Distance(entity_abs.x, entity_abs.y, entity_abs.z, local_abs.x, local_abs.y, local_abs.z)
+
+        entity, origin_distance, crosshair_distance = closest_entity, distance_to_entity, distance_to_closest_hitbox
+    end
+end
+
+
+--just easiert to use
+local function setValue(var, value)
+    gui.SetValue(var, value)
+end
+
+
+--LEGIT
+--automatically set the optimal first shot delay
+local function autoDelay()
+	if not entity or not ui.legit.auto_delay_enable:GetValue() then return end
+
+    local real_distance = crosshair_distance/(1000/origin_distance)
+
+    local smooth = gui.GetValue("lbot.weapon.aim." .. weapon_group .. ".smooth")
+    local delay = real_distance*(smooth+1)
+
+    --randomization to make it humanized and disable when spraying
+    local HITBOX_SIZE = 3
+    if real_distance <= HITBOX_SIZE then
+        gui.SetValue("lbot.weapon.target." .. weapon_group .. ".fsd", 0)
+    else
+        setValue("lbot.weapon.target." .. weapon_group .. ".fsd", delay + math.random(-20, 20))
+    end
+end
+
+
+--MISC
+--shows the aimbot FOV
+local function drawFov()
+	if not entity or not local_entity or not local_entity:IsAlive() or not ui.misc.draw_fov_enable:GetValue() then return end
+
+    local fov = gui.GetValue("lbot.master") and gui.GetValue("lbot.weapon.target." .. getWeaponGroup() .. ".maxfov") or gui.GetValue("rbot.fov")
+    local fov_deadzone = gui.GetValue("lbot.master") and gui.GetValue("lbot.weapon.target." .. getWeaponGroup() .. ".minfov") or 0
+	local scope_booster = local_entity:GetFieldInt("m_bIsScoped") == 0 and 1 or 2
+	local radius = gui.GetValue("lbot.master") and scope_booster*(30*fov*(1-(fov-3)/100)*(500/origin_distance)) or scope_booster*17*fov
+	local radius_deadzone = gui.GetValue("lbot.master") and scope_booster*(30*fov_deadzone*(1-(fov_deadzone-3)/100)*(500/origin_distance)) or scope_booster*17*fov_deadzone
+
+	draw.Color(ui.misc.draw_fov_color:GetValue())
+	draw.OutlinedCircle(screen_width/2, screen_height/2, radius)
+
+	draw.Color(ui.misc.draw_fov_color_deadzone:GetValue())
+	draw.OutlinedCircle(screen_width/2, screen_height/2, radius_deadzone)
+end
+
+
+--animates the thirdperson
+local third_person_distance_cur = 0
+local function animatedThirdPerson()
+    local ANIMATION_SPEED = 2
+
+    if ui.misc.animated_thirperson_enable:GetValue() then
+        if third_person_distance_cur < ui.misc.animated_thirperson_distance:GetValue() then
+            third_person_distance_cur = third_person_distance_cur + ANIMATION_SPEED
+            setValue("world.thirdpersondist", third_person_distance_cur)
+        end
+
+        setValue("world.thirdperson", true)
+    else
+        if third_person_distance_cur > 0 then
+            third_person_distance_cur = third_person_distance_cur - ANIMATION_SPEED
+            setValue("world.thirdpersondist", third_person_distance_cur)
+        end
+
+        if third_person_distance_cur <= 0 then
+            setValue("world.thirdperson", false)
+        end
+    end
+end
+
+
+--VISUALS
+--if your crosshair is nearby the enemy then it text will be drawn
+local font, font_outline = nil, nil
+local function createFonts()
+    if not font or not font_outline then
+        font = draw.CreateFont("Verdana", 12, 900)
+        font_outline = draw.CreateFont("Verdana", 12, 900, true)
+    end
+end
+
+
+--draws outlined text
+local function drawTextOutlined(x, y, text, color, font, font_outline)
+    draw.SetFont(font_outline)
+    draw.Color(0, 0, 0, color[4])
+    draw.Text(x, y, text)
+
+    draw.SetFont(font)
+    draw.Color(color[1], color[2], color[3], color[4])
+    draw.Text(x, y, text)
+end
+
+
+--filling all the states
+local states = nil
+local states_cache = nil
+local weapon_cache = nil
+local function getValues()
+    local weapon_group_names = {"shared", "zeus", "pistol", "hpistol", "smg", "rifle", "shotgun", "scout", "asniper", "sniper", "lmg"}
+    local rbot = gui.GetValue("rbot.enable")
+    local lbot = gui.GetValue("lbot.aim.enable")
+    local menu = gui.Reference("Menu")
+
+    --fill the states if they was not defined
+    if not states then
+        states = {}
+
+        --common states
+        states["Menu"] = {menu:IsActive(), 0}
+        states["Aimbot"] = {(lbot and gui.GetValue("lbot.aim.key") ~= 0 and input.IsButtonDown(gui.GetValue("lbot.aim.key"))), 0}
+        states["Triggerbot"] = {lbot and gui.GetValue("lbot.trg.enable") and gui.GetValue("lbot.trg.key") ~= 0 and input.IsButtonDown(gui.GetValue("lbot.trg.key")), 0}
+        states["Automatic Fire"] = {lbot and gui.GetValue("lbot.trg.enable") and gui.GetValue("lbot.trg.autofire"), 0}
+        states["Field Of View"] = {rbot and gui.GetValue("rbot.fov"), 0}
+        states["Fake Duck"] = {rbot and gui.GetValue("rbot.duckpeek") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.duckpeek")), 0}
+        states["Slow Walk"] = {rbot and gui.GetValue("misc.slowkey") ~= 0 and input.IsButtonDown(gui.GetValue("misc.slowkey")), 0}
+        states["Automatic peek"] = {rbot and gui.GetValue("rbot.autopeek.peekkey") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.autopeek.peekkey")), 0}
+        states["Third Person"] = {gui.GetValue("world.thirdperson"), 0}
+
+        --weapon based values
+        states["Automatic Wall"] = {gui.GetValue("rbot.accuracy." .. weapon_group .. ".autowall"), 0}
+        states["Adaptive Damage"] = {gui.GetValue("rbot.accuracy." .. weapon_group .. ".adaptivedamage"), 0}
+        states["Minimal Damage Override"] = {gui.GetValue("rbot.accuracy." .. weapon_group .. ".mindamage"), 0}
+        states["Hit Chance Override"] = {gui.GetValue("rbot.accuracy." .. weapon_group .. ".hitchance"), 0}
+        states["Through Wall"] = {lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group .. ".autowall"), 0}
+        states["Through Smoke"] = {lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group .. ".smoke"), 0}
+
+    --if was defined
+    else
+        states["Menu"][1] = menu:IsActive()
+        states["Aimbot"][1] = (lbot and gui.GetValue("lbot.aim.key") ~= 0 and input.IsButtonDown(gui.GetValue("lbot.aim.key")))
+        states["Triggerbot"][1] = lbot and gui.GetValue("lbot.trg.enable") and gui.GetValue("lbot.trg.key") ~= 0 and input.IsButtonDown(gui.GetValue("lbot.trg.key"))
+        states["Automatic Fire"][1] = lbot and gui.GetValue("lbot.trg.enable") and gui.GetValue("lbot.trg.autofire")
+        states["Field Of View"][1] = rbot and gui.GetValue("rbot.fov")
+        states["Fake Duck"][1] = rbot and gui.GetValue("rbot.duckpeek") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.duckpeek"))
+        states["Slow Walk"][1] = rbot and gui.GetValue("misc.slowkey") ~= 0 and input.IsButtonDown(gui.GetValue("misc.slowkey"))
+        states["Automatic peek"][1] = rbot and gui.GetValue("rbot.autopeek.peekkey") ~= 0 and input.IsButtonDown(gui.GetValue("rbot.autopeek.peekkey"))
+        states["Third Person"][1] = gui.GetValue("world.thirdperson")
+
+        --legitbot weapon based values
+        states["Automatic Wall"][1] = gui.GetValue("rbot.accuracy." .. weapon_group .. ".autowall")
+        states["Adaptive Damage"][1] = gui.GetValue("rbot.accuracy." .. weapon_group .. ".adaptivedamage")
+        states["Minimal Damage Override"][1] = gui.GetValue("rbot.accuracy." .. weapon_group .. ".mindamage")
+        states["Hit Chance Override"][1] = gui.GetValue("rbot.accuracy." .. weapon_group .. ".hitchance")
+        states["Through Wall"][1] = lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group .. ".autowall")
+        states["Through Smoke"][1] = lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group .. ".smoke")
+    end
+
+    --filling the caches
+    if not states_cache or not weapon_cache or not ui.visuals.keybinds_enable:GetValue() then
+        --common cache
+        states_cache = {}
+
+        for names, value in pairs(states) do
+            states_cache[names] = {value[1], value[2]}
+        end
+
+        --menu and aimbot must shows only when enabled therefore cache = false
+        states_cache["Menu"] = {false, 0}
+        states_cache["Aimbot"] = {false, 0}
+
+        --weapon based cache
+        weapon_cache = {}
+        weapon_cache["Minimal Damage Override"] = {}
+        weapon_cache["Hit Chance Override"] = {}
+        weapon_cache["Automatic Wall"] = {}
+        weapon_cache["Adaptive Damage"] = {}
+        weapon_cache["Through Wall"] = {}
+        weapon_cache["Through Smoke"] = {}
+
+        for i = 1, #weapon_group_names do
+            weapon_cache["Minimal Damage Override"][weapon_group_names[i]] = gui.GetValue("rbot.accuracy." .. weapon_group_names[i] .. ".mindamage")
+            weapon_cache["Hit Chance Override"][weapon_group_names[i]] = gui.GetValue("rbot.accuracy." .. weapon_group_names[i] .. ".hitchance")
+            weapon_cache["Automatic Wall"][weapon_group_names[i]] = gui.GetValue("rbot.accuracy." .. weapon_group_names[i] .. ".autowall")
+            weapon_cache["Adaptive Damage"][weapon_group_names[i]] = gui.GetValue("rbot.accuracy." .. weapon_group_names[i] .. ".adaptivedamage")
+            weapon_cache["Through Wall"][weapon_group_names[i]] = lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group_names[i] .. ".autowall")
+            weapon_cache["Through Smoke"][weapon_group_names[i]] = lbot and gui.GetValue("lbot.weapon.vis." .. weapon_group_names[i] .. ".smoke")
+        end
+    end
+end
+
+--keybinds animation system
+local last_frame = common.Time()
+local fps = 1
+local function animateKeybinds()
+    local frame = common.Time()
+    fps = 1 / (frame-last_frame)
+    last_frame = frame
+
+    local TEXT_DISTANCE = 15
+    local ANIMATION_TIME = 100/fps
+    local TEXT_ANIMATION_SPEED = 0.75
+
+    for name, value in pairs(states) do
+
+        --checking for weapon base states if current state is not equal to the cached state then start animate it
+        if name ~= "Through Wall" and name ~= "Through Smoke" and name ~= "Minimal Damage Override"
+        and name ~= "Hit Chance Override" and name ~= "Automatic Wall" and name ~= "Adaptive Damage" then
+
+            --check and animate
+            if states_cache[name][1] ~= value[1] then
+                if states[name][2] + TEXT_ANIMATION_SPEED*ANIMATION_TIME < TEXT_DISTANCE then
+                    states[name][2] = states[name][2] + TEXT_ANIMATION_SPEED*ANIMATION_TIME
+                else
+                    states[name][2] = TEXT_DISTANCE
+                end
+            else
+                if states[name][2] - TEXT_ANIMATION_SPEED*ANIMATION_TIME > 0 then
+                    states[name][2] = states[name][2] - TEXT_ANIMATION_SPEED*ANIMATION_TIME
+                else
+                    states[name][2] = 0
+                end
+            end
+
+        --weapon based states
+         else
+
+            --check and animate
+            if weapon_cache[name][weapon_group] ~= value[1] then
+                if states[name][2] + TEXT_ANIMATION_SPEED*ANIMATION_TIME < TEXT_DISTANCE then
+                    states[name][2] = states[name][2] + TEXT_ANIMATION_SPEED*ANIMATION_TIME
+                else
+                    states[name][2] = TEXT_DISTANCE
+                end
+            else
+                if states[name][2] - TEXT_ANIMATION_SPEED*ANIMATION_TIME > 0 then
+                    states[name][2] = states[name][2] - TEXT_ANIMATION_SPEED*ANIMATION_TIME
+                else
+                    states[name][2] = 0
+                end
+            end
+        end
+    end
+end
+
+
+--format the states values
+local function formatValue(value)
+    if value == "true" then return "On" end
+    if value == "false" then return "Off" end
+
+    return value
+end
+
+
+--draws the vertical to down gradient line
+local function drawGradientLine(pos_x, pos_y, length, width, color, type)
+    if not type then type = 0 end               --vertical line
+
+    local reversed = 1
+    if length < 0 then
+        length = -1*length
+        reversed = -1
+    end
+
+    local alpha_step = color[4] / length
+
+
+    --vertical
+    if type == 0 then
+        for i = 0, length-1 do
+            draw.Color(color[1], color[2], color[3], color[4] - alpha_step*i)
+            draw.FilledRect(pos_x, pos_y + reversed*i, pos_x + width, pos_y + reversed*(i + 1))
+        end
+
+    --horizontal
+    else
+        for i = 0, length-1 do
+            draw.Color(color[1], color[2], color[3], color[4] - alpha_step*i)
+            draw.FilledRect(pos_x + reversed*i, pos_y, pos_x + reversed*(i + 1), pos_y + width)
+        end
+    end
+end
+
+
+--controles the position of the keybinds by the mouse
+local visuals_x_distance, visuals_y_distance = math.huge, math.huge
+local function controleKeybindsPostion()
+
+    --all gui, that has positions of visuals
+    local BORDER = 5
+    local BORDER_Y = 15
+    local pos_x = ui.visuals.keybinds_position_x:GetValue() - BORDER
+    local pos_y = ui.visuals.keybinds_position_y:GetValue() - BORDER_Y
+
+    --getting menu position
+    local menu = gui.Reference("Menu")
+    local menu_pos = {menu:GetValue()}
+    local mouse_pos = {input.GetMousePos()}
+
+    --keybinds sizes
+    local KEYBINDS_HEADER_SIZE = 30
+    local KEYBINDS_SIZE = 240
+
+    --collecting delta data if mouse 1 is not pressed
+    if not input.IsButtonDown(1) then
+
+        --getting distance between visuals and mouse
+        visuals_x_distance = mouse_pos[1] - pos_x
+        visuals_y_distance = mouse_pos[2] - pos_y
+    end
+
+    --setting positions
+    if input.IsButtonDown(1) and (visuals_x_distance > 0 and visuals_x_distance <= KEYBINDS_SIZE) and
+        (visuals_y_distance > 0 and visuals_y_distance <= KEYBINDS_HEADER_SIZE) and menu:IsActive() then
+
+        ui.visuals.keybinds_position_x:SetValue(mouse_pos[1] - visuals_x_distance + BORDER)
+        ui.visuals.keybinds_position_y:SetValue(mouse_pos[2] - visuals_y_distance + BORDER_Y)
+    end
+end
+
+
+--draw all keybinds stuff
+local function drawKeybinds()
+    --animation
+    local ANIMATION_TIME = 100/fps
+    local TEXT_ANIMATION_SPEED = 0.01
+
+    --get max text sizes and sum of animations
+    local sum_of_animations = 0
+    local max_size_x, max_size_y = 0, 0
+    local max_animation = 0
+    for name, value in pairs(states) do
+        if value[2] ~= 0 then
+            local formated_value = formatValue(tostring(value[1]))
+            local animation_value = value[2]
+
+            --get the max text sizes and animate x
+            draw.SetFont(font)
+            local text_size_x, text_size_y = draw.GetTextSize(formated_value)
+            while text_size_x > max_size_x do max_size_x = max_size_x + TEXT_ANIMATION_SPEED*ANIMATION_TIME end
+            if text_size_y > max_size_y then max_size_y = text_size_y end
+
+            --get the max animation_value
+            if animation_value > max_animation then max_animation = animation_value end
+
+            --get animation sum
+            sum_of_animations = sum_of_animations + animation_value
+        end
+    end
+
+    --position
+    local pos_x = ui.visuals.keybinds_position_x:GetValue()
+    local pos_y = ui.visuals.keybinds_position_y:GetValue()
+
+    --size constants
+    local TEXT_DISTANCE = 15
+    local DISTANCE_TO_VALUE = 200
+    local BORDER = 5
+    local BORDER_Y = 15
+    local LINE_SIZE = 2
+
+    --draw background
+    local color = {ui.visuals.keybinds_color_background:GetValue()}
+    local alpha = sum_of_animations >= 15 and color[4] or color[4]/TEXT_DISTANCE*sum_of_animations
+    draw.Color(color[1], color[2], color[3], alpha)
+    draw.FilledRect(pos_x - BORDER, pos_y - BORDER_Y,
+                    pos_x + DISTANCE_TO_VALUE + max_size_x + BORDER, pos_y + sum_of_animations + max_size_y + max_animation)
+
+    --draw lines from left and right to center
+    local color = {ui.visuals.keybinds_color_line:GetValue()}
+    local center = pos_x - BORDER + ((pos_x + DISTANCE_TO_VALUE + max_size_x + BORDER) - (pos_x - BORDER))/2    local right_side = pos_x + DISTANCE_TO_VALUE + max_size_x + BORDER
+    local line_animation = sum_of_animations >= 15 and 1 or 1*sum_of_animations/15
+    local line_length = line_animation*(center - (pos_x - BORDER))
+    local alpha = sum_of_animations >= 15 and color[4] or color[4]/TEXT_DISTANCE*sum_of_animations
+
+    draw.Color(color[1], color[2], color[3], alpha)
+    draw.FilledRect(pos_x - BORDER, pos_y - LINE_SIZE/2 - BORDER_Y, pos_x - BORDER + line_length , pos_y - BORDER_Y + LINE_SIZE/2)
+    draw.FilledRect(right_side, pos_y - LINE_SIZE/2 - BORDER_Y, right_side - line_length, pos_y - BORDER_Y + LINE_SIZE/2)
+
+    --draw side gradient lines
+    local color = {color[1], color[2], color[3], alpha}
+    drawGradientLine(pos_x - BORDER - LINE_SIZE/2, pos_y - LINE_SIZE/2 - BORDER_Y, sum_of_animations + max_size_y + max_animation, LINE_SIZE, color)
+    drawGradientLine(pos_x + DISTANCE_TO_VALUE + max_size_x + BORDER - LINE_SIZE/2, pos_y - LINE_SIZE/2 - BORDER_Y, sum_of_animations + max_size_y + max_animation, LINE_SIZE, color)
+
+    --draw keybinds text
+    local color = {ui.visuals.keybinds_color_text:GetValue()}
+    draw.SetFont(font_outline)
+    local keybinds_text_size_x, keybinds_text_size_y = draw.GetTextSize("keybinds")
+    drawTextOutlined(center - keybinds_text_size_x/2, pos_y - BORDER_Y/2 + keybinds_text_size_y/2, "keybinds",
+        {color[1], color[2], color[3], alpha}, font, font_outline)
+
+    --draw text if it has animation_value
+    local color = {ui.visuals.keybinds_color_text:GetValue()}
+    local sum_of_animations = 0
+    for name, value in pairs(states) do
+        if value[2] ~= 0 then
+            local formated_value = formatValue(tostring(value[1]))
+            local animation_value = value[2]
+
+            --get sum of animations for current text state
+            sum_of_animations = sum_of_animations + animation_value
+
+            --draw text
+            local alpha = color[4]/TEXT_DISTANCE*animation_value
+            drawTextOutlined(pos_x, pos_y + sum_of_animations, name,
+                {color[1], color[2], color[3], alpha}, font, font_outline)
+            drawTextOutlined(pos_x + DISTANCE_TO_VALUE, pos_y + sum_of_animations, formated_value,
+                {color[1], color[2], color[3], alpha}, font, font_outline)
+        end
+    end
+end
+
+
+--getting logs event
+local hits = {}
+local miss = false
+local function getLogs(event)
+    if not local_entity or not local_entity:IsAlive() then return end
+
+    --to get misses
+    if event:GetName() == "weapon_fire" then
+        local user = entities.GetByIndex(event:GetInt("userid") + 1):GetFieldEntity("m_hPawn")
+
+        if user:GetIndex() == local_entity:GetIndex() and user:GetTeamNumber() == local_entity:GetTeamNumber() then
+            miss = true
+        end
+    end
+
+    --to get hits
+    if event:GetName() == "player_hurt" then
+        local victim = entities.GetByIndex(event:GetInt("userid") + 1):GetFieldEntity("m_hPawn")
+        local attacker = nil
+        if entities.GetByIndex(event:GetInt("attacker") + 1) then
+            attacker = entities.GetByIndex(event:GetInt("attacker") + 1):GetFieldEntity("m_hPawn")
+        end
+
+        if attacker and victim ~= attacker and victim:IsPlayer() and attacker:IsPlayer() and
+          attacker:GetIndex() == local_entity:GetIndex() and attacker:GetTeamNumber() == local_entity:GetTeamNumber() then
+            miss = false
+
+            local health_left = event:GetInt("health")
+            local dmg_health = event:GetInt("dmg_health")
+
+            local hitgroups = {"head", "chest", "stomach", "left arm", "right arm", "left leg", "right leg"}
+            local hitgroup = hitgroups[event:GetInt("hitgroup")]
+            hitgroup = hitgroup and hitgroup or "generic"
+
+            local text = ""
+            if health_left ~= 0 then
+                text = "Hit" .. " " .. victim:GetName() .. " in the " .. hitgroup .. " for " .. dmg_health ..
+                 " (" .. health_left .. " health remaining)"
+            else
+                text = "Killed" .. " " .. victim:GetName() .. " in the " .. hitgroup
+            end
+
+            local FULL_DURATION = 5
+            hits[#hits + 1] = {text, common.Time() + FULL_DURATION}
+        end
+    end
+
+    if event:GetName() == "round_prestart" then
+        hits = {}
+    end
+end
+
+
+--if missed, then adds it to logs
+local function detectMiss()
+    if gui.GetValue("rbot.master") and miss and not input.IsButtonDown(1) then
+        local FULL_DURATION = 5
+        hits[#hits + 1] = {"Missed shot due to (?)", common.Time() + FULL_DURATION}
+
+        miss = false
+    end
+end
+
+
+--drawing all logs from the hits array
+local function drawLogs()
+    if not ui.visuals.hitlogs_enable:GetValue() then
+        hits = {}
+        return
+    end
+
+    local time = common.Time()
+
+    --colors
+    local color_text = {ui.visuals.hitlogs_color_text:GetValue()}
+    local color_background = {ui.visuals.hitlogs_color_background:GetValue()}
+    local color_line = {ui.visuals.hitlogs_color_line:GetValue()}
+
+    --draw loop
+    local animation_sum = 0
+    local to_remove = 0
+    for hit = 1, #hits do
+        if hits[hit] then
+            local text = hits[hit][1]
+            local duration = hits[hit][2] - time
+
+            if duration >= 0 then
+                local animation_scaler = 1
+                local FULL_DURATION = 5
+                local ANIMATION_TIME = 0.5
+                if duration > FULL_DURATION-ANIMATION_TIME then
+                    animation_scaler = (FULL_DURATION - duration) * (1/ANIMATION_TIME)
+                elseif duration < ANIMATION_TIME then
+                    animation_scaler = duration * (1/ANIMATION_TIME)
+                end
+
+                local BETWEEN_HITS_DISTANCE = 25
+                animation_sum = animation_sum + BETWEEN_HITS_DISTANCE*animation_scaler
+
+                local x_pos = 20
+                local y_pos = 20 + animation_sum - BETWEEN_HITS_DISTANCE
+
+                draw.SetFont(font_outline)
+                local text_size_x, text_size_y = draw.GetTextSize(text)
+
+                local BORDER = 5
+                draw.Color(color_background[1], color_background[2], color_background[3], animation_scaler*color_background[4])
+                draw.FilledRect(x_pos-BORDER, y_pos-BORDER, x_pos+text_size_x+BORDER, y_pos+text_size_y+BORDER)
+
+                local center = x_pos+text_size_x/2
+                local length = animation_scaler*(center-(x_pos-BORDER))
+                local LINE_HEIGHT = 2
+                draw.Color(color_line[1], color_line[2], color_line[3], animation_scaler*color_line[4])
+                draw.FilledRect(x_pos-BORDER, y_pos-BORDER-LINE_HEIGHT/2, x_pos-BORDER+length, y_pos-BORDER+LINE_HEIGHT/2)
+                draw.FilledRect(x_pos+text_size_x+BORDER, y_pos-BORDER-LINE_HEIGHT/2, x_pos+text_size_x+BORDER-length, y_pos-BORDER+LINE_HEIGHT/2)
+
+                drawGradientLine(x_pos-BORDER, y_pos-BORDER, animation_scaler*(text_size_y+2*BORDER), LINE_HEIGHT,
+                    {color_line[1], color_line[2], color_line[3], animation_scaler*color_line[4]})
+                drawGradientLine(x_pos+text_size_x+BORDER-LINE_HEIGHT, y_pos-BORDER, animation_scaler*(text_size_y+2*BORDER), LINE_HEIGHT,
+                    {color_line[1], color_line[2], color_line[3], animation_scaler*color_line[4]})
+
+
+                drawTextOutlined(x_pos, y_pos, text, {color_text[1], color_text[2], color_text[3], animation_scaler*color_text[4]}, font, font_outline)
+            else
+                to_remove = to_remove + 1
+            end
+        end
+    end
+
+    --does not destruct the table during the iteration like table.remove and does not break the animation
+    if to_remove > 0 then
+        local cleared_hits = {}
+        for i = to_remove+1, #hits do
+            cleared_hits[#cleared_hits + 1] = hits[i]
+        end
+
+        hits = {}
+        for i = 1, #cleared_hits do
+            hits[#hits + 1] = cleared_hits[i]
+        end
+    end
+
+    if not local_entity then
+        hits = {}
+    end
+end
+
+
+--callbacks
+callbacks.Register("Draw", function()
+    UI()
+    defineVariables()
+    getClosestToCrosshair()
+
+    if ui.legit.enable:GetValue() then
+        autoDelay()
+    end
+
+    if ui.misc.enable:GetValue() then
+        drawFov()
+        animatedThirdPerson()
+    end
+
+    if ui.visuals.enable:GetValue() then
+        createFonts()
+
+        getValues()
+        if ui.visuals.keybinds_enable:GetValue() then
+
+            animateKeybinds()
+            controleKeybindsPostion()
+
+            if (local_entity and local_entity:IsAlive()) or states["Menu"][2] > 0 then
+                drawKeybinds()
+            end
+        end
+
+        detectMiss()
+        drawLogs()
+    end
+end)
+
+
+callbacks.Register("FireGameEvent", function(event)
+    if ui.visuals.enable:GetValue() then
+        getLogs(event)
+    end
+end)
+client.AllowListener("round_prestart")
+client.AllowListener("weapon_fire")
+client.AllowListener("player_hurt")
